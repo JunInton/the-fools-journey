@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="The Fool's Journey"
+run/main_scene="uid://deujp5ruvh6h1"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+CardData="*uid://bmchatu2jbfkb"
 
 [physics]
 
