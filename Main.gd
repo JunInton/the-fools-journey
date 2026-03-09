@@ -1,22 +1,129 @@
-extends Node2D
+extends Control
 
-# Preload is like import in JS
-# It loads the Card scene so we can create instances of it
 const CardScene = preload("res://Card.tscn")
 
+# ------------------------------------
+# @onready vars = like useRef in React
+# They grab a reference to a node in the tree
+# The $ is shorthand for get_node()
+# $VBoxContainer/TopHalf = document.querySelector(".TopHalf")
+# ------------------------------------
+@onready var adventure_container = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/AdventureContainer
+@onready var discard_container = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/DiscardContainer
+@onready var deck_container = $MarginContainer/VBoxContainer/TopHalf/DeckSection/DeckContainer
+
+@onready var wisdom_container = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/WisdomContainer
+@onready var satchel_container = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/SatchelContainer
+@onready var volition_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection/VolitionContainer
+@onready var strength_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection/StrengthContainer
+
+@onready var fool_name_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard/FoolNameLabel
+@onready var fool_vitality_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard/FoolVitalityLabel
+
+@onready var adventure_label = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/AdventureLabel
+@onready var discard_label = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/DiscardLabel
+@onready var deck_label = $MarginContainer/VBoxContainer/TopHalf/DeckSection/DeckLabel
+@onready var wisdom_label = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/WisdomLabel
+@onready var satchel_label = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/SatchelLabel
+@onready var fool_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolLabel
+@onready var volition_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection/VolitionLabel
+@onready var strength_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection/StrengthLabel
+
 func _ready():
+	# Set static label text
+	adventure_label.text = "Adventure Field"
+	discard_label.text = "Discard Pile"
+	deck_label.text = "Deck"
+	wisdom_label.text = "Wisdom"
+	satchel_label.text = "Satchel"
+	fool_label.text = "The Fool"
+	volition_label.text = "Volition"
+	strength_label.text = "Strength"
+	fool_name_label.text = "The Fool"
+
+	# Connect to GameState's signal
+	# This is like addEventListener in JS
+	# Whenever GameState emits "state_changed", we call _on_state_changed
+	GameState.state_changed.connect(_on_state_changed)
+	GameState.game_over.connect(_on_game_over)
+	GameState.game_won.connect(_on_game_won)
+
 	GameState.start_game()
-	_render_adventure_field()
 
-func _render_adventure_field():
-	# Remove any existing cards first (like clearing a div's innerHTML)
-	for child in get_children():
-		child.queue_free()  # queue_free() = safe way to delete a node
+# ------------------------------------
+# SIGNAL HANDLERS
+# Like event listeners - these fire automatically
+# when GameState emits the matching signal
+# ------------------------------------
+func _on_state_changed():
+	_render_all()
 
-	# Create a card node for each card in the adventure field
-	for i in range(GameState.adventure_field.size()):
-		var card_instance = CardScene.instantiate()  # like <CardScene /> in JSX
-		add_child(card_instance)
-		card_instance.set_card(GameState.adventure_field[i])
-		# Space them out horizontally - like flexbox with a gap
-		card_instance.position = Vector2(i * 120, 50)
+func _on_game_over(reason: String):
+	print("GAME OVER: ", reason)
+	# We'll add a proper screen for this later
+
+func _on_game_won():
+	print("YOU WIN!")
+	# We'll add a proper screen for this later
+
+# ------------------------------------
+# RENDERING
+# Like a React render/return — rebuilds
+# the visual state from current game data
+# ------------------------------------
+func _render_all():
+	_render_zone(adventure_container, GameState.adventure_field)
+	_render_zone(satchel_container, GameState.satchel)
+	_render_zone(wisdom_container, GameState.equipped_wisdom)
+	_render_equipped_single(volition_container, GameState.equipped_volition)
+	_render_equipped_single(strength_container, GameState.equipped_strength)
+	_render_discard()
+	_render_deck()
+	_render_fool_stats()
+
+# Renders an array of cards into a container
+# Like mapping over an array in JSX
+func _render_zone(container: Node, cards: Array):
+	# Clear existing children first - like clearing innerHTML
+	for child in container.get_children():
+		child.queue_free()
+
+	for card in cards:
+		var instance = CardScene.instantiate()
+		container.add_child(instance)
+		instance.set_card(card)
+
+# Renders a single equipped card slot (or empty)
+func _render_equipped_single(container: Node, card):
+	for child in container.get_children():
+		child.queue_free()
+
+	if card != null:
+		var instance = CardScene.instantiate()
+		container.add_child(instance)
+		instance.set_card(card)
+
+# Discard pile just shows the top card
+func _render_discard():
+	for child in discard_container.get_children():
+		child.queue_free()
+
+	if GameState.discard_pile.size() > 0:
+		var top_card = GameState.discard_pile.back()
+		var instance = CardScene.instantiate()
+		discard_container.add_child(instance)
+		instance.set_card(top_card)
+
+# Deck shows a count - no need to show actual cards
+func _render_deck():
+	for child in deck_container.get_children():
+		child.queue_free()
+
+	var count = GameState.deck.size()
+	var label = Label.new()
+	label.text = str(count) + " cards remaining"
+	deck_container.add_child(label)
+
+# Update the Fool's vitality display
+func _render_fool_stats():
+	fool_vitality_label.text = "Vitality: " + str(GameState.vitality) + " / 25"

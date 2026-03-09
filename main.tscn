@@ -2,5 +2,109 @@
 
 [ext_resource type="Script" uid="uid://b2u3qwlr74mn4" path="res://Main.gd" id="1_ig7tw"]
 
-[node name="Main" type="Node2D" unique_id=126549801]
+[node name="Main" type="Control" unique_id=1146499168]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_ig7tw")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1526133056]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1957171869]
+layout_mode = 2
+
+[node name="TopHalf" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=532926461]
+layout_mode = 2
+
+[node name="DiscardSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=324266910]
+layout_mode = 2
+
+[node name="DiscardLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1476885969]
+layout_mode = 2
+
+[node name="DiscardContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1982374041]
+layout_mode = 2
+
+[node name="AdventureSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=1183665929]
+layout_mode = 2
+
+[node name="AdventureLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection" unique_id=2030343186]
+layout_mode = 2
+
+[node name="AdventureContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection" unique_id=318752824]
+layout_mode = 2
+
+[node name="DeckSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=875324112]
+layout_mode = 2
+
+[node name="DeckLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection" unique_id=1473264741]
+layout_mode = 2
+
+[node name="DeckContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection" unique_id=1716990065]
+layout_mode = 2
+
+[node name="BottomHalf" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=97574789]
+layout_mode = 2
+
+[node name="WisdomSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=103073787]
+layout_mode = 2
+
+[node name="WisdomLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=712535957]
+layout_mode = 2
+
+[node name="WisdomContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=426253062]
+layout_mode = 2
+
+[node name="FoolSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=1161600919]
+layout_mode = 2
+
+[node name="FoolLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=179012294]
+layout_mode = 2
+
+[node name="FoolStats" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=21613914]
+layout_mode = 2
+
+[node name="FoolEquipped" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=24086058]
+layout_mode = 2
+
+[node name="VolitionSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=1048487183]
+layout_mode = 2
+
+[node name="VolitionLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection" unique_id=1976374242]
+layout_mode = 2
+
+[node name="VolitionContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection" unique_id=1667617458]
+layout_mode = 2
+
+[node name="FoolCard" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=548065975]
+layout_mode = 2
+
+[node name="FoolNameLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard" unique_id=1960461322]
+layout_mode = 2
+
+[node name="FoolVitalityLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard" unique_id=1356932279]
+layout_mode = 2
+
+[node name="StrengthSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=740664616]
+layout_mode = 2
+
+[node name="StrengthLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection" unique_id=136798400]
+layout_mode = 2
+
+[node name="StrengthContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection" unique_id=516940721]
+layout_mode = 2
+
+[node name="SatchelSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=1126462992]
+layout_mode = 2
+
+[node name="SatchelLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=292397448]
+layout_mode = 2
+
+[node name="SatchelContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=1314779524]
+layout_mode = 2
