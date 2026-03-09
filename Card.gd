@@ -8,6 +8,10 @@ var card_data: Dictionary = {}
 @onready var card_value_label = $VBoxContainer/CardValue
 
 func _ready():
+	#Lock the card to a fixed size - prevent it from strecthing
+	custom_minimum_size = Vector2(90, 130)
+	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	
 	# If card_data was set before this node was added to the scene
 	# we update the display immediately
 	if card_data.size() > 0:
@@ -23,6 +27,8 @@ func set_card(data: Dictionary):
 
 func update_display():
 	card_name_label.text = card_data.get("name", "Unknown")
+	card_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_name_label.add_theme_font_size_override("font_size", 11)
 
 	# Only show value for cards that have meaningful values
 	var role = card_data.get("role", "")
@@ -37,6 +43,10 @@ func update_display():
 		card_value_label.text = "Value: " + str(value)
 	else:
 		card_value_label.text = role.capitalize()
+		
+	card_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_value_label.add_theme_font_size_override("font_size", 11)
 
 	# Color the card based on suit - like conditional CSS classes
 	_apply_color()

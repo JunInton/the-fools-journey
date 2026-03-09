@@ -47,6 +47,9 @@ func _ready():
 	GameState.state_changed.connect(_on_state_changed)
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
+	
+	_setup_colors()
+	_setup_labels()
 
 	GameState.start_game()
 
@@ -127,3 +130,49 @@ func _render_deck():
 # Update the Fool's vitality display
 func _render_fool_stats():
 	fool_vitality_label.text = "Vitality: " + str(GameState.vitality) + " / 25"
+
+func _setup_colors():
+	# Helper that creats a colored background panel for any Control node
+	# Like setting a background color in CSS
+	var sections = {
+		$MarginContainer/VBoxContainer/TopHalf/DiscardSection: Color(0.15, 0.15, 0.2),
+		$MarginContainer/VBoxContainer/TopHalf/AdventureSection: Color(0.1, 0.2, 0.1),
+		$MarginContainer/VBoxContainer/TopHalf/DeckSection: Color(0.15, 0.15, 0.2),
+		$MarginContainer/VBoxContainer/BottomHalf/WisdomSection: Color(0.3, 0.25, 0.05),
+		$MarginContainer/VBoxContainer/BottomHalf/FoolSection: Color(0.2, 0.1, 0.3),
+		$MarginContainer/VBoxContainer/BottomHalf/SatchelSection: Color(0.1, 0.2, 0.25),
+	}
+	for node in sections:
+		var stylebox = StyleBoxFlat.new()
+		stylebox.bg_color = sections[node]
+		stylebox.corner_radius_top_left = 8
+		stylebox.corner_radius_top_right = 8
+		stylebox.corner_radius_bottom_left = 8
+		stylebox.corner_radius_bottom_right = 8
+		stylebox.content_margin_left = 8
+		stylebox.content_margin_right = 8
+		stylebox.content_margin_top = 8
+		stylebox.content_margin_bottom = 8
+		node.add_theme_stylebox_override("panel", stylebox)
+
+func _setup_labels():
+	# Center all labels and set font sizes
+	# Like text-align: center in CSS
+	var all_labels = [
+		adventure_label, discard_label, deck_label,
+		wisdom_label, satchel_label, fool_label,
+		volition_label, strength_label, fool_name_label,
+		fool_vitality_label
+	]
+	for label in all_labels:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 14)
+
+	# Make section headers slightly bigger
+	var header_labels = [
+		adventure_label, discard_label, deck_label,
+		wisdom_label, satchel_label, fool_label
+	]
+	for label in header_labels:
+		label.add_theme_font_size_override("font_size", 16)
+		label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
