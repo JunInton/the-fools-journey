@@ -48,6 +48,12 @@ func _ready():
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
 	
+	# Connect double-click on discard label to open the viewer
+	# mouse_filter must be MOUSE_FILTER_STOP otherwise the Label
+	# ignores mouse events entirely and _gui_input never fires
+	discard_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	discard_label.gui_input.connect(_on_discard_label_input)
+	
 	_setup_colors()
 	_setup_labels()
 
@@ -93,8 +99,12 @@ func _render_zone(container: Node, cards: Array, zone_name: String):
 
 	for card in cards:
 		var instance = CardScene.instantiate()
-		container.add_child(instance)
+		# IMPORTANT: source_zone must be set BEFORE add_child()
+		# add_child() triggers _ready() on the instance, which reads source_zone
+		# to set mouse_filter. If we set source_zone after, _ready() has already
+		# fired with the wrong default value and mouse_filter never gets set.
 		instance.source_zone = zone_name
+		container.add_child(instance)
 		instance.set_card(card)
 
 # Renders a single equipped card slot (or empty)
@@ -104,11 +114,13 @@ func _render_equipped_single(container: Node, card, zone_name: String):
 
 	if card != null:
 		var instance = CardScene.instantiate()
-		container.add_child(instance)
+		# Same reason as above - source_zone before add_child
 		instance.source_zone = zone_name
+		container.add_child(instance)
 		instance.set_card(card)
 
-# Discard pile just shows the top card
+# Discard pile shows only the top card face-up
+# but tracks draggable = false so it can't be reused
 func _render_discard():
 	for child in discard_container.get_children():
 		child.queue_free()
@@ -116,17 +128,79 @@ func _render_discard():
 	if GameState.discard_pile.size() > 0:
 		var top_card = GameState.discard_pile.back()
 		var instance = CardScene.instantiate()
+		instance.source_zone = "discard"
 		discard_container.add_child(instance)
+		# Discard pile cards must not be draggable
+		# Without this flag, players could recycle discarded cards
+		instance.draggable = false
 		instance.set_card(top_card)
 
+	# Show the discard count on the section label
+	discard_label.text = "Discard Pile (" + str(GameState.discard_pile.size()) + ")"
+
+# Opens a read-only popup showing all discarded cards
+# Called from the DiscardSection node on double-click
+# Player can only view - no interactions allowed
+func show_discard_viewer():
+	if GameState.discard_pile.size() == 0:
+		return
+
+	# PopupPanel with a scrollable list of all discarded cards
+	var popup = PopupPanel.new()
+	popup.title = "Discard Pile — " + str(GameState.discard_pile.size()) + " cards"
+
+	var vbox = VBoxContainer.new()
+
+	var scroll = ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(400, 300)
+
+	# Inner container for the cards inside the scroll view
+	var card_grid = HFlowContainer.new()
+	card_grid.add_theme_constant_override("h_separation", 6)
+	card_grid.add_theme_constant_override("v_separation", 6)
+
+	# Show all discarded cards, most recent first
+	# Array.duplicate().reverse() = like [...arr].reverse() in JS
+	var cards_reversed = GameState.discard_pile.duplicate()
+	cards_reversed.reverse()
+
+	for card in cards_reversed:
+		var instance = CardScene.instantiate()
+		# Add to tree first so _ready fires, then set card data
+		card_grid.add_child(instance)
+		instance.draggable = false
+		instance.source_zone = "discard"
+		instance.set_card(card)
+
+	scroll.add_child(card_grid)
+	vbox.add_child(scroll)
+
+	# Close button at the bottom
+	var close_btn = Button.new()
+	close_btn.text = "Close"
+	close_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(close_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered(Vector2(440, 380))
+
 # Deck shows a count - no need to show actual cards
+# Challenge count helps the player plan ahead
 func _render_deck():
 	for child in deck_container.get_children():
 		child.queue_free()
+		
+	# Count how many challenges remain in the draw pile
+	var challenge_count = 0
+	for card in GameState.deck:
+		if card.role == CardData.ROLE_CHALLENGE:
+			challenge_count += 1
 
-	var count = GameState.deck.size()
 	var label = Label.new()
-	label.text = str(count) + " cards remaining"
+	label.text = str(GameState.deck.size()) + " cards\n" + str(challenge_count) + " challenges"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 12)
 	deck_container.add_child(label)
 
 # Update the Fool's vitality display
@@ -178,3 +252,8 @@ func _setup_labels():
 	for label in header_labels:
 		label.add_theme_font_size_override("font_size", 16)
 		label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
+		
+func _on_discard_label_input(event: InputEvent):
+	if event is InputEventMouseButton:
+		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
+			show_discard_viewer()

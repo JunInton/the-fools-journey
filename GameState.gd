@@ -85,16 +85,18 @@ func _deal_adventure():
 	adventure_field = []
 	cards_resolved_this_adventure = 0
 
-	# If there's a carried over card, place it first
+	# Carry-over card goes in first, in the leftmost position
 	if carried_over_card != null:
 		adventure_field.append(carried_over_card)
 		carried_over_card = null
 
-	# Fill the rest from the deck
+	# Fill remaining slots from the deck
+	# pop_back() takes from the end of the array - like JS .pop()
 	while adventure_field.size() < ADVENTURE_FIELD_SIZE and deck.size() > 0:
-		adventure_field.append(deck.pop_back())  # pop_back = JS .pop()
+		adventure_field.append(deck.pop_back())
 
-	print("Adventure dealt. Field: ", adventure_field.size(), " cards. Deck remaining: ", deck.size())
+	print("Adventure dealt. Field: ", adventure_field.size(), 
+		" cards. Deck remaining: ", deck.size())
 
 # ------------------------------------
 # ACTIONS
@@ -310,17 +312,23 @@ func _on_card_resolved():
 func _end_adventure():
 	print("Adventure complete!")
 
-	# One remaining card carries over
+	# The one unresolved card carries over to the next adventure
+	# Per the rules, exactly one card remains when 3 of 4 are resolved
 	if adventure_field.size() == 1:
 		carried_over_card = adventure_field[0]
 		adventure_field = []
+	elif adventure_field.size() == 0:
+		carried_over_card = null
 
-	if deck.size() == 0 and adventure_field.size() == 0:
+	# Check win condition - deck empty and no cards left to resolve
+	if deck.size() == 0 and adventure_field.size() == 0 and carried_over_card == null:
 		print("YOU WIN!")
 		emit_signal("game_won")
 		return
 
+	# Deal the next adventure
 	_deal_adventure()
+	emit_signal("state_changed")
 
 func _check_vitality():
 	if vitality <= 0:
@@ -357,4 +365,24 @@ func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from
 
 	emit_signal("state_changed")
 	print("Helper deployed! ", target_card.name, " value doubled to ", target_card.value)
+	return true
+	
+# Called when player drags an equipped card to the discard pile
+# Unequips the card and discards it cleanly
+func unequip_strength_to_discard() -> bool:
+	if equipped_strength == null:
+		return false
+	discard_pile.append(equipped_strength)
+	equipped_strength = null
+	emit_signal("state_changed")
+	print("Strength unequipped and discarded.")
+	return true
+
+func unequip_volition_to_discard() -> bool:
+	if equipped_volition == null:
+		return false
+	discard_pile.append(equipped_volition)
+	equipped_volition = null
+	emit_signal("state_changed")
+	print("Volition unequipped and discarded.")
 	return true
