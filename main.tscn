@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://deujp5ruvh6h1"]
 
 [ext_resource type="Script" uid="uid://b2u3qwlr74mn4" path="res://Main.gd" id="1_ig7tw"]
+[ext_resource type="Script" uid="uid://chder66p6i2lb" path="res://DropZone.gd" id="2_0xm2m"]
 
 [node name="Main" type="Control" unique_id=1146499168]
 layout_mode = 3
@@ -33,6 +34,7 @@ size_flags_vertical = 3
 [node name="DiscardSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=2094606307]
 layout_mode = 2
 size_flags_horizontal = 3
+script = ExtResource("2_0xm2m")
 
 [node name="DiscardLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1476885969]
 layout_mode = 2
@@ -67,6 +69,8 @@ size_flags_vertical = 3
 [node name="WisdomSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=1143507395]
 layout_mode = 2
 size_flags_horizontal = 3
+script = ExtResource("2_0xm2m")
+zone_type = 2
 
 [node name="WisdomLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=712535957]
 layout_mode = 2
@@ -77,6 +81,8 @@ layout_mode = 2
 [node name="FoolSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=2059427067]
 layout_mode = 2
 size_flags_horizontal = 3
+script = ExtResource("2_0xm2m")
+zone_type = 5
 
 [node name="FoolLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=179012294]
 layout_mode = 2
@@ -90,6 +96,8 @@ size_flags_vertical = 3
 
 [node name="VolitionSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=1048487183]
 layout_mode = 2
+script = ExtResource("2_0xm2m")
+zone_type = 4
 
 [node name="VolitionLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection" unique_id=1976374242]
 layout_mode = 2
@@ -108,6 +116,8 @@ layout_mode = 2
 
 [node name="StrengthSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=740664616]
 layout_mode = 2
+script = ExtResource("2_0xm2m")
+zone_type = 3
 
 [node name="StrengthLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection" unique_id=136798400]
 layout_mode = 2
@@ -118,6 +128,8 @@ layout_mode = 2
 [node name="SatchelSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=270684405]
 layout_mode = 2
 size_flags_horizontal = 3
+script = ExtResource("2_0xm2m")
+zone_type = 1
 
 [node name="SatchelLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=292397448]
 layout_mode = 2

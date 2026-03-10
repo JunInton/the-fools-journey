@@ -151,10 +151,10 @@ func equip_wisdom(card: Dictionary, from_satchel: bool = false) -> bool:
 func equip_strength(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_STRENGTH:
 		return false
+	# If already equipped, discard the old one first
 	if equipped_strength != null:
-		print("Already have Strength equipped!")
-		return false
-
+		discard_pile.append(equipped_strength)
+		print("Old Strength discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_strength = card
 	emit_signal("state_changed")
@@ -165,10 +165,10 @@ func equip_strength(card: Dictionary, from_satchel: bool = false) -> bool:
 func equip_volition(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_VOLITION:
 		return false
+	#If already equipped, discard the old one first
 	if equipped_volition != null:
-		print("Already have Volition equipped!")
-		return false
-
+		discard_pile.append(equipped_volition)
+		print("Old Volition discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_volition = card
 	emit_signal("state_changed")
@@ -327,3 +327,34 @@ func _check_vitality():
 		vitality = 0
 		print("GAME OVER - Vitality depleted!")
 		emit_signal("game_over", "The Fool's journey has ended.")
+		
+func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from_satchel: bool = false) -> bool:
+	if helper_card.role != CardData.ROLE_HELPER:
+		return false
+	if helper_card.suit != target_card.suit:
+		print("Helper suit doesn't match target!")
+		return false
+	if target_card.get("doubled", false):
+		print("Card already doubled!")
+		return false
+	if equipped_wisdom.size() == 0:
+		print("Need at least one Wisdom card to deploy a Helper!")
+		return false
+
+	# Pay cost - discard one equipped wisdom card
+	var wisdom_card = equipped_wisdom[0]
+	equipped_wisdom.remove_at(0)
+	discard_pile.append(wisdom_card)
+	print("Wisdom spent: ", wisdom_card.name)
+
+	# Double the target card's value and flag it
+	target_card["value"] = target_card["value"] * 2
+	target_card["doubled"] = true
+
+	# Discard the helper
+	_remove_from_source(helper_card, helper_from_satchel)
+	discard_pile.append(helper_card)
+
+	emit_signal("state_changed")
+	print("Helper deployed! ", target_card.name, " value doubled to ", target_card.value)
+	return true

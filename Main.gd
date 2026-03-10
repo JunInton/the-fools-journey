@@ -75,18 +75,18 @@ func _on_game_won():
 # the visual state from current game data
 # ------------------------------------
 func _render_all():
-	_render_zone(adventure_container, GameState.adventure_field)
-	_render_zone(satchel_container, GameState.satchel)
-	_render_zone(wisdom_container, GameState.equipped_wisdom)
-	_render_equipped_single(volition_container, GameState.equipped_volition)
-	_render_equipped_single(strength_container, GameState.equipped_strength)
+	_render_zone(adventure_container, GameState.adventure_field, "adventure")
+	_render_zone(satchel_container, GameState.satchel, "satchel")
+	_render_zone(wisdom_container, GameState.equipped_wisdom, "equipped_wisdom")
+	_render_equipped_single(volition_container, GameState.equipped_volition, "equipped_volition")
+	_render_equipped_single(strength_container, GameState.equipped_strength, "equipped_strength")
 	_render_discard()
 	_render_deck()
 	_render_fool_stats()
 
 # Renders an array of cards into a container
 # Like mapping over an array in JSX
-func _render_zone(container: Node, cards: Array):
+func _render_zone(container: Node, cards: Array, zone_name: String):
 	# Clear existing children first - like clearing innerHTML
 	for child in container.get_children():
 		child.queue_free()
@@ -94,16 +94,18 @@ func _render_zone(container: Node, cards: Array):
 	for card in cards:
 		var instance = CardScene.instantiate()
 		container.add_child(instance)
+		instance.source_zone = zone_name
 		instance.set_card(card)
 
 # Renders a single equipped card slot (or empty)
-func _render_equipped_single(container: Node, card):
+func _render_equipped_single(container: Node, card, zone_name: String):
 	for child in container.get_children():
 		child.queue_free()
 
 	if card != null:
 		var instance = CardScene.instantiate()
 		container.add_child(instance)
+		instance.source_zone = zone_name
 		instance.set_card(card)
 
 # Discard pile just shows the top card
