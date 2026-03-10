@@ -48,11 +48,13 @@ func _ready():
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
 	
-	# Connect double-click on discard label to open the viewer
-	# mouse_filter must be MOUSE_FILTER_STOP otherwise the Label
-	# ignores mouse events entirely and _gui_input never fires
-	discard_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	discard_label.gui_input.connect(_on_discard_label_input)
+	# Connect double-click on the entire DiscardSection panel to open the viewer
+	# We use the section panel rather than just the label because _setup_labels()
+	# runs after this and resets label properties, breaking the label connection.
+	# The panel covers the whole zone so the player can double-click anywhere in it.
+	var discard_section = $MarginContainer/VBoxContainer/TopHalf/DiscardSection
+	discard_section.mouse_filter = Control.MOUSE_FILTER_STOP
+	discard_section.gui_input.connect(_on_discard_section_input)
 	
 	_setup_colors()
 	_setup_labels()
@@ -152,27 +154,31 @@ func show_discard_viewer():
 	var vbox = VBoxContainer.new()
 
 	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(400, 300)
+	scroll.custom_minimum_size = Vector2(440, 320)
+	# Allow horizontal scrolling so cards stay in one row
+	# rather than wrapping to new lines
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
-	# Inner container for the cards inside the scroll view
-	var card_grid = HFlowContainer.new()
-	card_grid.add_theme_constant_override("h_separation", 6)
-	card_grid.add_theme_constant_override("v_separation", 6)
+	# HBoxContainer keeps all cards in a single horizontal row
+	# HFlowContainer was wrapping to new lines - HBoxContainer won't
+	var card_row = HBoxContainer.new()
+	card_row.add_theme_constant_override("separation", 6)
 
 	# Show all discarded cards, most recent first
 	# Array.duplicate().reverse() = like [...arr].reverse() in JS
+
 	var cards_reversed = GameState.discard_pile.duplicate()
 	cards_reversed.reverse()
 
 	for card in cards_reversed:
 		var instance = CardScene.instantiate()
-		# Add to tree first so _ready fires, then set card data
-		card_grid.add_child(instance)
-		instance.draggable = false
 		instance.source_zone = "discard"
+		card_row.add_child(instance)
+		instance.draggable = false
 		instance.set_card(card)
 
-	scroll.add_child(card_grid)
+	scroll.add_child(card_row)
 	vbox.add_child(scroll)
 
 	# Close button at the bottom
@@ -198,7 +204,7 @@ func _render_deck():
 			challenge_count += 1
 
 	var label = Label.new()
-	label.text = str(GameState.deck.size()) + " cards\n" + str(challenge_count) + " challenges"
+	label.text = str(GameState.deck.size()) + " cards\n" + str(challenge_count) + " challenges remaining"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
 	deck_container.add_child(label)
@@ -253,7 +259,7 @@ func _setup_labels():
 		label.add_theme_font_size_override("font_size", 16)
 		label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
 		
-func _on_discard_label_input(event: InputEvent):
+func _on_discard_section_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
 			show_discard_viewer()

@@ -105,6 +105,8 @@ func _deal_adventure():
 # ------------------------------------
 
 # Move a card from adventure field into the satchel
+# Now uses _remove_from_source so storing a card correctly
+# counts toward the 3 needed to end the adventure
 func store_in_satchel(card: Dictionary) -> bool:
 	if satchel.size() >= MAX_SATCHEL:
 		print("Satchel is full!")
@@ -113,23 +115,26 @@ func store_in_satchel(card: Dictionary) -> bool:
 		print("Cannot store a Challenge card!")
 		return false
 
-	adventure_field.erase(card)
+	# _remove_from_source handles adventure field tracking
+	# previously this was adventure_field.erase(card) directly
+	# which bypassed _on_card_resolved entirely
+	_remove_from_source(card, false)
 	satchel.append(card)
 	emit_signal("state_changed")
 	print("Stored in satchel: ", card.name)
 	return true
 
 # Discard a non-challenge card from field or satchel
+# Same fix - now routes through _remove_from_source
+# so field discards correctly count toward adventure completion
 func discard_card(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role == CardData.ROLE_CHALLENGE:
 		print("Cannot discard a Challenge card!")
 		return false
 
-	if from_satchel:
-		satchel.erase(card)
-	else:
-		adventure_field.erase(card)
-
+	# _remove_from_source handles both satchel and field removal
+	# and triggers _on_card_resolved when card leaves the field
+	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
 	emit_signal("state_changed")
 	print("Discarded: ", card.name)
@@ -212,8 +217,7 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 		discard_pile.append(equipped_volition)
 		discard_pile.append(challenge)
 		equipped_volition = null
-		adventure_field.erase(challenge)
-		_on_card_resolved()
+		_remove_from_source(challenge, false)
 	else:
 		# Deplete the challenge
 		print("Volition depletes challenge by ", vol_value)
@@ -241,15 +245,13 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		discard_pile.append(equipped_strength)
 		discard_pile.append(challenge)
 		equipped_strength = null
-		adventure_field.erase(challenge)
-		_on_card_resolved()
+		_remove_from_source(challenge, false)
 	elif str_value > challenge_value:
 		# Strength wins - challenge discarded, strength depleted
 		print("Challenge ENDURED, Strength depleted by ", challenge_value)
 		equipped_strength.value -= challenge_value
 		discard_pile.append(challenge)
-		adventure_field.erase(challenge)
-		_on_card_resolved()
+		_remove_from_source(challenge, false)
 	else:
 		# Challenge wins - both discarded, Fool takes damage
 		var damage = challenge_value - str_value
@@ -258,14 +260,14 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		discard_pile.append(equipped_strength)
 		discard_pile.append(challenge)
 		equipped_strength = null
-		adventure_field.erase(challenge)
-		_on_card_resolved()
+		_remove_from_source(challenge, false)
 		_check_vitality()
 
 	emit_signal("state_changed")
 	return true
 
 # Resolve a challenge directly (pay vitality)
+# Now uses _remove_from_source like all other resolution functions
 func resolve_directly(challenge: Dictionary) -> bool:
 	if challenge.role != CardData.ROLE_CHALLENGE:
 		return false
@@ -273,8 +275,9 @@ func resolve_directly(challenge: Dictionary) -> bool:
 	vitality -= challenge.value
 	print("Challenge resolved directly! Vitality cost: ", challenge.value)
 	discard_pile.append(challenge)
-	adventure_field.erase(challenge)
-	_on_card_resolved()
+	# _remove_from_source replaces the old adventure_field.erase() + _on_card_resolved()
+	# pattern - one call handles both removal and adventure completion check
+	_remove_from_source(challenge, false)
 	_check_vitality()
 	emit_signal("state_changed")
 	return true
@@ -295,17 +298,43 @@ func replenish_vitality(card: Dictionary, from_satchel: bool = false) -> bool:
 # ------------------------------------
 # INTERNAL HELPERS
 # ------------------------------------
+# Central removal function called whenever a card leaves a zone
+# Now tracks adventure field removals to trigger adventure completion
+# Previously only challenge resolution counted - this was the bug
 func _remove_from_source(card: Dictionary, from_satchel: bool):
 	if from_satchel:
 		satchel.erase(card)
 	else:
+		# Card is leaving the adventure field - count it
+		# erase() returns true if the card was found and removed
+		var was_in_field = adventure_field.has(card)
 		adventure_field.erase(card)
+		if was_in_field:
+			_on_card_resolved()
 
 func _on_card_resolved():
 	cards_resolved_this_adventure += 1
 	print("Cards resolved this adventure: ", cards_resolved_this_adventure)
 
-	# Need to resolve 3 of 4 before moving on
+	# Count remaining challenges across deck and adventure field
+	# The player wins as soon as the last challenge is resolved —
+	# no need to clear leftover non-challenge cards from the field
+	var challenges_in_deck = 0
+	for c in deck:
+		if c.role == CardData.ROLE_CHALLENGE:
+			challenges_in_deck += 1
+
+	var challenges_in_field = 0
+	for c in adventure_field:
+		if c.role == CardData.ROLE_CHALLENGE:
+			challenges_in_field += 1
+
+	if challenges_in_deck == 0 and challenges_in_field == 0:
+		print("YOU WIN! All challenges resolved!")
+		emit_signal("game_won")
+		return
+
+	# Need 3 of 4 cards resolved before dealing the next adventure
 	if cards_resolved_this_adventure >= 3:
 		_end_adventure()
 

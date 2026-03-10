@@ -71,7 +71,7 @@ func update_display():
 		# If a Helper has doubled this card, show a marker
 		# The "doubled" key is set by GameState.deploy_helper()
 		if card_data.get("doubled", false):
-			value_text += " x2"
+			value_text += "\n(boosted)"
 		card_value_label.text = value_text
 	else:
 		# capitalize() turns "helper" into "Helper" etc.
@@ -96,6 +96,12 @@ func _apply_color():
 		CardData.SUIT_COINS:   stylebox.bg_color = Color(0.7, 0.6, 0.1)  # gold
 		CardData.SUIT_MAJOR:   stylebox.bg_color = Color(0.4, 0.1, 0.6)  # purple
 		_:                     stylebox.bg_color = Color(0.3, 0.3, 0.3)  # grey fallback
+		
+	# If a helper has boosted this card, brighten the color slightly
+	# This gives a visual cue that the card has been modified
+	# like a CSS brightness filter on a highlighted element
+	if card_data.get("doubled", false):
+		stylebox.bg_color = stylebox.bg_color.lightened(0.25)
 
 	# Rounded corners - like border-radius: 6px in CSS
 	stylebox.corner_radius_top_left = 6
@@ -294,6 +300,18 @@ func _gui_input(event: InputEvent):
 					# primary way to interact with them besides drag-and-drop
 					# from equipped cards. Opens a multi-option dialog.
 					_show_challenge_dialog()
+				
+				CardData.ROLE_HELPER:
+					# Only respond if this helper has valid targets to double
+					# Checks adventure field, satchel, and equipped cards for same-suit targets
+					if GameState.equipped_wisdom.size() == 0:
+						print("No Wisdom available to deploy Helper!")
+						return
+					var targets = _find_helper_targets()
+					if targets.is_empty():
+						print("No valid targets for this Helper!")
+						return
+					_show_helper_dialog(targets)
 
 # ------------------------------------
 # CHALLENGE RESOLUTION DIALOG
@@ -407,3 +425,108 @@ func _confirm_action(message: String, callback: Callable):
 		if not dialog.visible:
 			dialog.queue_free()
 	dialog.visibility_changed.connect(cleanup, CONNECT_ONE_SHOT)
+
+# ------------------------------------
+# HELPER TARGET FINDER
+# Searches all zones for valid cards this Helper can double:
+# - Same suit as this Helper
+# - Role is Strength, Volition, or Vitality
+# - Not already doubled
+# Returns an array of Dictionaries describing each valid target,
+# including where the card lives so GameState can find it
+# ------------------------------------
+func _find_helper_targets() -> Array:
+	var targets = []
+	var my_suit = card_data.get("suit", "")
+
+	# Check adventure field
+	for card in GameState.adventure_field:
+		if _is_valid_helper_target(card, my_suit):
+			targets.append({
+				"card": card,
+				"zone": "adventure",
+				"label": card.name + " (Adventure Field) — Value: " + str(card.value)
+			})
+
+	# Check satchel
+	for card in GameState.satchel:
+		if _is_valid_helper_target(card, my_suit):
+			targets.append({
+				"card": card,
+				"zone": "satchel",
+				"label": card.name + " (Satchel) — Value: " + str(card.value)
+			})
+
+	# Check equipped strength - Batons helper can double it
+	if GameState.equipped_strength != null:
+		var s = GameState.equipped_strength
+		if _is_valid_helper_target(s, my_suit):
+			targets.append({
+				"card": s,
+				"zone": "equipped_strength",
+				"label": s.name + " (Equipped Strength) — Value: " + str(s.value)
+			})
+
+	# Check equipped volition - Swords helper can double it
+	if GameState.equipped_volition != null:
+		var v = GameState.equipped_volition
+		if _is_valid_helper_target(v, my_suit):
+			targets.append({
+				"card": v,
+				"zone": "equipped_volition",
+				"label": v.name + " (Equipped Volition) — Value: " + str(v.value)
+			})
+
+	return targets
+
+# Small helper that checks all three conditions a target must meet
+func _is_valid_helper_target(card: Dictionary, required_suit: String) -> bool:
+	return (
+		card.get("suit", "") == required_suit and
+		card.get("role", "") in [CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION, CardData.ROLE_VITALITY] and
+		not card.get("doubled", false)
+	)
+
+# ------------------------------------
+# HELPER DEPLOYMENT DIALOG
+# Shows a list of valid targets the player can choose to double
+# Each button shows the card name, its zone, and current value
+# so the player can make an informed choice
+# ------------------------------------
+func _show_helper_dialog(targets: Array):
+	var popup = PopupPanel.new()
+	popup.title = "Deploy " + card_data.get("name", "Helper")
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title_label = Label.new()
+	title_label.text = "Choose a card to double its value:\n(costs 1 Wisdom card)"
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title_label)
+
+	# Build one button per valid target
+	for target in targets:
+		var btn = Button.new()
+		btn.text = target.label
+
+		# Capture target in closure - like closing over a variable in JS forEach
+		# Without the local var capture, all buttons would reference
+		# the last value of 'target' after the loop completes
+		var captured_target = target
+		btn.pressed.connect(func():
+			popup.queue_free()
+			var from_satchel = source_zone == "satchel"
+			GameState.deploy_helper(card_data, captured_target.card, from_satchel)
+		)
+		vbox.add_child(btn)
+
+	# Cancel button - no action taken
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(cancel_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered(Vector2(360, 220))
