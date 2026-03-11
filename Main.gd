@@ -3,34 +3,42 @@ extends Control
 const CardScene = preload("res://Card.tscn")
 
 # ------------------------------------
-# @onready vars = like useRef in React
-# They grab a reference to a node in the tree
-# The $ is shorthand for get_node()
-# $VBoxContainer/TopHalf = document.querySelector(".TopHalf")
+# @onready vars grab references to child nodes
+# Like useRef in React - $ is shorthand for get_node()
+# 
+# ← CHANGED: All paths inside the five sections now include /VBoxContainer/
+# because Part 3 added a VBoxContainer inside each section.
+# Old path example: .../DiscardSection/DiscardLabel
+# New path example: .../DiscardSection/VBoxContainer/DiscardLabel
 # ------------------------------------
-@onready var adventure_container = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/AdventureContainer
-@onready var discard_container = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/DiscardContainer
-@onready var deck_container = $MarginContainer/VBoxContainer/TopHalf/DeckSection/DeckContainer
+@onready var adventure_container = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/VBoxContainer/AdventureContainer
+@onready var discard_container = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/VBoxContainer/DiscardContainer
+@onready var deck_container = $MarginContainer/VBoxContainer/TopHalf/DeckSection/VBoxContainer/DeckContainer
 
-@onready var wisdom_container = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/WisdomContainer
-@onready var satchel_container = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/SatchelContainer
-@onready var volition_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection/VolitionContainer
-@onready var strength_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection/StrengthContainer
+@onready var wisdom_container = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/VBoxContainer/WisdomContainer
+@onready var satchel_container = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/VBoxContainer/SatchelContainer
 
-@onready var fool_name_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard/FoolNameLabel
-@onready var fool_vitality_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard/FoolVitalityLabel
+# Volition and Strength container paths are unchanged - they were already
+# inside VBoxContainers inside FoolEquipped
+@onready var volition_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/VolitionSection/VolitionContainer
+@onready var strength_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection/StrengthContainer
 
-@onready var adventure_label = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/AdventureLabel
-@onready var discard_label = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/DiscardLabel
-@onready var deck_label = $MarginContainer/VBoxContainer/TopHalf/DeckSection/DeckLabel
-@onready var wisdom_label = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/WisdomLabel
-@onready var satchel_label = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/SatchelLabel
-@onready var fool_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolLabel
-@onready var volition_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection/VolitionLabel
-@onready var strength_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection/StrengthLabel
+# ← CHANGED: fool_name_label removed entirely - FoolNameLabel node was deleted in Part 3
+# ← CHANGED: fool_vitality_label path updated - node moved to be a direct child of FoolSection
+@onready var fool_vitality_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolVitalityLabel
+
+# ← CHANGED: All label paths now include /VBoxContainer/ for the five sections
+@onready var adventure_label = $MarginContainer/VBoxContainer/TopHalf/AdventureSection/VBoxContainer/AdventureLabel
+@onready var discard_label = $MarginContainer/VBoxContainer/TopHalf/DiscardSection/VBoxContainer/DiscardLabel
+@onready var deck_label = $MarginContainer/VBoxContainer/TopHalf/DeckSection/VBoxContainer/DeckLabel
+@onready var wisdom_label = $MarginContainer/VBoxContainer/BottomHalf/WisdomSection/VBoxContainer/WisdomLabel
+@onready var satchel_label = $MarginContainer/VBoxContainer/BottomHalf/SatchelSection/VBoxContainer/SatchelLabel
+@onready var fool_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolLabel
+@onready var volition_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/VolitionSection/VolitionLabel
+@onready var strength_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection/StrengthLabel
 
 func _ready():
-	# Set static label text
+	# Set static label text for all zone headers
 	adventure_label.text = "Adventure Field"
 	discard_label.text = "Discard Pile"
 	deck_label.text = "Deck"
@@ -39,44 +47,127 @@ func _ready():
 	fool_label.text = "The Fool"
 	volition_label.text = "Volition"
 	strength_label.text = "Strength"
-	fool_name_label.text = "The Fool"
+	# ← CHANGED: fool_name_label.text removed - that node no longer exists
 
-	# Connect to GameState's signal
-	# This is like addEventListener in JS
-	# Whenever GameState emits "state_changed", we call _on_state_changed
+	# Connect to GameState signals
+	# Like addEventListener in JS - these fire automatically when emitted
 	GameState.state_changed.connect(_on_state_changed)
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
-	
-	# Whenever Theme changes, we call _on_theme_changed
+
+	# Connect to ThemeManager so the board recolors when theme changes
 	ThemeManager.theme_changed.connect(_on_theme_changed)
-	
-	# Connect double-click on the entire DiscardSection panel to open the viewer
-	# We use the section panel rather than just the label because _setup_labels()
-	# runs after this and resets label properties, breaking the label connection.
-	# The panel covers the whole zone so the player can double-click anywhere in it.
+
+	# Connect double-click on the entire DiscardSection to open the viewer
+	# Using the panel rather than the label because _setup_labels() runs
+	# after this and would override any mouse_filter set on the label
 	var discard_section = $MarginContainer/VBoxContainer/TopHalf/DiscardSection
 	discard_section.mouse_filter = Control.MOUSE_FILTER_STOP
 	discard_section.gui_input.connect(_on_discard_section_input)
-	
+
 	_setup_colors()
 	_setup_labels()
+	_setup_layout()  # ← NEW: separated layout sizing into its own function
 
 	GameState.start_game()
 
 # ------------------------------------
+# LAYOUT SETUP
+# ← NEW FUNCTION: previously these settings were scattered or missing.
+# Handles section proportions and container alignment.
+# size_flags_stretch_ratio is like CSS flex-grow - it controls how
+# much of the available space each sibling takes relative to others.
+# ------------------------------------
+func _setup_layout():
+	var discard_section = $MarginContainer/VBoxContainer/TopHalf/DiscardSection
+	var adventure_section = $MarginContainer/VBoxContainer/TopHalf/AdventureSection
+	var deck_section = $MarginContainer/VBoxContainer/TopHalf/DeckSection
+
+	# Adventure Field gets 3x the horizontal space of Discard and Deck
+	# So the ratio is 1 : 3 : 1 across the top row
+	discard_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	discard_section.size_flags_stretch_ratio = 1.0
+	adventure_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	adventure_section.size_flags_stretch_ratio = 3.0
+	deck_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	deck_section.size_flags_stretch_ratio = 1.0
+
+	# Tighten spacing between cards in the adventure field
+	adventure_container.add_theme_constant_override("separation", 12)
+
+	# Center cards horizontally within Wisdom and Satchel zones
+	# Without this they left-align by default
+	wisdom_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	satchel_container.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	# Center cards within Strength and Volition zones too
+	strength_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	volition_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	
+	# Center items vertically and horizontally within the Deck zone
+	# Without this they left-align by default in the VBoxContainer
+	deck_container.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	# Center the top discard card within the Discard zone
+	discard_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	
+	# Center cards horizontally in the adventure field
+	adventure_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	
+	# Center FoolEquipped within the Fool zone
+	# SIZE_SHRINK_CENTER collapses it to its content size and centers it
+	# rather than stretching it to fill the full zone height
+	var fool_equipped = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped
+	fool_equipped.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	fool_equipped.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	# Pull the vitality label up closer to the Fool card
+	# by reducing the separation on the FoolSection VBoxContainer
+	var fool_vbox = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer
+	fool_vbox.add_theme_constant_override("separation", 4)
+	
+	# ← NEW: Fix the width of Strength and Volition slots so they always
+	# reserve space even when no card is equipped.
+	# Without this the Fool card drifts left or right depending on what's equipped.
+	# The minimum width should be wide enough to comfortably hold one card (110px card
+	# + some breathing room = 130px)
+	var strength_section = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection
+	var volition_section = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/VolitionSection
+	strength_section.custom_minimum_size.x = 130
+	volition_section.custom_minimum_size.x = 130
+
+	# Also center the FoolCard slot itself within its fixed-width neighbors
+	var fool_card = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/FoolCard
+	fool_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	
+	# Add spacing between zone labels and their card containers
+	# so cards appear vertically centered in the zone rather than
+	# pressed up against the label at the top.
+	# This targets the VBoxContainer inside each section that wraps
+	# the label + card container pair.
+	var sections_with_labels = [
+		$MarginContainer/VBoxContainer/TopHalf/DiscardSection/VBoxContainer,
+		$MarginContainer/VBoxContainer/TopHalf/AdventureSection/VBoxContainer,
+		$MarginContainer/VBoxContainer/TopHalf/DeckSection/VBoxContainer,
+		$MarginContainer/VBoxContainer/BottomHalf/WisdomSection/VBoxContainer,
+		$MarginContainer/VBoxContainer/BottomHalf/SatchelSection/VBoxContainer,
+	]
+	for section_vbox in sections_with_labels:
+		# separation adds space between the label child and the container child
+		# 12px gives enough breathing room without pushing cards too far down
+		section_vbox.add_theme_constant_override("separation", 32)
+
+# ------------------------------------
 # SIGNAL HANDLERS
-# Like event listeners - these fire automatically
-# when GameState emits the matching signal
+# These fire automatically when GameState or ThemeManager emit signals
 # ------------------------------------
 func _on_state_changed():
 	_render_all()
 
 func _on_game_over(reason: String):
 	print("GAME OVER: ", reason)
-	# Small delay before transitioning so the player can see
-	# the final state of the board before the screen changes
-	# get_tree().create_timer() is like setTimeout() in JS
+	# Small delay so player can see the final board state before transitioning
+	# create_timer().timeout is like setTimeout() in JS
 	await get_tree().create_timer(1.5).timeout
 	get_tree().change_scene_to_file("res://LoseScreen.tscn")
 
@@ -85,10 +176,16 @@ func _on_game_won():
 	await get_tree().create_timer(1.5).timeout
 	get_tree().change_scene_to_file("res://WinScreen.tscn")
 
+func _on_theme_changed(_new_theme: String):
+	# Re-apply zone colors and re-render cards when theme switches
+	# _setup_colors handles zone backgrounds, _render_all handles card colors
+	_setup_colors()
+	_render_all()
+
 # ------------------------------------
 # RENDERING
-# Like a React render/return — rebuilds
-# the visual state from current game data
+# Like React's render - rebuilds the visual state from current game data.
+# Called every time GameState emits state_changed.
 # ------------------------------------
 func _render_all():
 	_render_zone(adventure_container, GameState.adventure_field, "adventure")
@@ -99,11 +196,12 @@ func _render_all():
 	_render_discard()
 	_render_deck()
 	_render_fool_stats()
+	_render_fool_card()
 
 # Renders an array of cards into a container
-# Like mapping over an array in JSX
+# Like mapping over an array in JSX: cards.map(card => <Card data={card} />)
 func _render_zone(container: Node, cards: Array, zone_name: String):
-	# Clear existing children first - like clearing innerHTML
+	# Clear existing children - like clearing innerHTML before re-rendering
 	for child in container.get_children():
 		child.queue_free()
 
@@ -111,26 +209,23 @@ func _render_zone(container: Node, cards: Array, zone_name: String):
 		var instance = CardScene.instantiate()
 		# IMPORTANT: source_zone must be set BEFORE add_child()
 		# add_child() triggers _ready() on the instance, which reads source_zone
-		# to set mouse_filter. If we set source_zone after, _ready() has already
-		# fired with the wrong default value and mouse_filter never gets set.
+		# to set mouse_filter. Setting it after means _ready() fires with the wrong default.
 		instance.source_zone = zone_name
 		container.add_child(instance)
 		instance.set_card(card)
 
-# Renders a single equipped card slot (or empty)
+# Renders a single equipped card slot (Strength or Volition)
 func _render_equipped_single(container: Node, card, zone_name: String):
 	for child in container.get_children():
 		child.queue_free()
 
 	if card != null:
 		var instance = CardScene.instantiate()
-		# Same reason as above - source_zone before add_child
 		instance.source_zone = zone_name
 		container.add_child(instance)
 		instance.set_card(card)
 
-# Discard pile shows only the top card face-up
-# but tracks draggable = false so it can't be reused
+# Discard pile shows only the top card, non-interactive
 func _render_discard():
 	for child in discard_container.get_children():
 		child.queue_free()
@@ -140,22 +235,18 @@ func _render_discard():
 		var instance = CardScene.instantiate()
 		instance.source_zone = "discard"
 		discard_container.add_child(instance)
-		# Discard pile cards must not be draggable
-		# Without this flag, players could recycle discarded cards
+		# draggable = false prevents players from recycling discarded cards
 		instance.draggable = false
 		instance.set_card(top_card)
 
-	# Show the discard count on the section label
 	discard_label.text = "Discard Pile (" + str(GameState.discard_pile.size()) + ")"
 
-# Opens a read-only popup showing all discarded cards
-# Called from the DiscardSection node on double-click
-# Player can only view - no interactions allowed
+# Shows a scrollable popup of all discarded cards, most recent first
+# Triggered by double-clicking anywhere in the DiscardSection panel
 func show_discard_viewer():
 	if GameState.discard_pile.size() == 0:
 		return
 
-	# PopupPanel with a scrollable list of all discarded cards
 	var popup = PopupPanel.new()
 	popup.title = "Discard Pile — " + str(GameState.discard_pile.size()) + " cards"
 
@@ -163,19 +254,14 @@ func show_discard_viewer():
 
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(440, 320)
-	# Allow horizontal scrolling so cards stay in one row
-	# rather than wrapping to new lines
+	# Horizontal scroll keeps all cards in one row instead of wrapping
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
-	# HBoxContainer keeps all cards in a single horizontal row
-	# HFlowContainer was wrapping to new lines - HBoxContainer won't
 	var card_row = HBoxContainer.new()
 	card_row.add_theme_constant_override("separation", 6)
 
-	# Show all discarded cards, most recent first
-	# Array.duplicate().reverse() = like [...arr].reverse() in JS
-
+	# duplicate().reverse() = like [...arr].reverse() in JS
 	var cards_reversed = GameState.discard_pile.duplicate()
 	cards_reversed.reverse()
 
@@ -189,7 +275,6 @@ func show_discard_viewer():
 	scroll.add_child(card_row)
 	vbox.add_child(scroll)
 
-	# Close button at the bottom
 	var close_btn = Button.new()
 	close_btn.text = "Close"
 	close_btn.pressed.connect(func(): popup.queue_free())
@@ -199,13 +284,21 @@ func show_discard_viewer():
 	get_tree().root.add_child(popup)
 	popup.popup_centered(Vector2(440, 380))
 
-# Deck shows a count - no need to show actual cards
-# Challenge count helps the player plan ahead
+# Deck shows a card back image plus count label
+# Uses the Card scene for the back image so sizing matches all other cards
 func _render_deck():
 	for child in deck_container.get_children():
 		child.queue_free()
-		
-	# Count how many challenges remain in the draw pile
+
+	# Render the card back as a Card scene instance
+	# This reuses the same sizing constraints as every other card
+	if GameState.deck.size() > 0:
+		var instance = CardScene.instantiate()
+		instance.source_zone = "deck"
+		instance.draggable = false
+		deck_container.add_child(instance)
+		instance.show_card_back()
+
 	var challenge_count = 0
 	for card in GameState.deck:
 		if card.role == CardData.ROLE_CHALLENGE:
@@ -215,15 +308,58 @@ func _render_deck():
 	label.text = str(GameState.deck.size()) + " cards\n" + str(challenge_count) + " challenges remaining"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
+	# ← NEW: Shrink label to its content width and center it horizontally
+	# Without this the label fills the container width and appears left-anchored
+	# even though its text is centered within it
+	label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	deck_container.add_child(label)
 
-# Update the Fool's vitality display
+# ------------------------------------
+# THE FOOL CARD RENDERING
+# ← CHANGED: The Fool card now hides its name and value labels.
+# The zone label ("The Fool") and the vitality label below handle
+# all the information the player needs about this zone.
+# The card only renders once - we check for the named node to avoid
+# re-creating it on every state_changed signal.
+# ------------------------------------
+func _render_fool_card():
+	var fool_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/FoolCard
+	if fool_container.has_node("FoolCardDisplay"):
+		return
+
+	# The Fool is always index 0 in CardData.all_cards
+	var fool_data = CardData.all_cards[0]
+	var instance = CardScene.instantiate()
+	instance.name = "FoolCardDisplay"
+	instance.source_zone = "fool"
+	fool_container.add_child(instance)
+	instance.set_card(fool_data)
+
+	# CHANGED: was visible = false which removes nodes from layout,
+	# making the Fool card shorter than equipped cards and causing the
+	# vitality label to shift down when a strength/volition card is equipped.
+	# modulate = Color(0,0,0,0) makes labels fully transparent while keeping
+	# them in the layout, so the Fool card stays the same height as equipped cards.
+	instance.get_node("VBoxContainer/CardName").modulate = Color(0, 0, 0, 0)
+	instance.get_node("VBoxContainer/CardValue").modulate = Color(0, 0, 0, 0)
+
+# ------------------------------------
+# FOOL STATS
+# ← CHANGED: fool_vitality_label is now a direct child of FoolSection
+# (moved in Part 3), so it sits below the entire FoolEquipped row.
+# Centering it makes it read as a caption under the Fool card area.
+# ------------------------------------
 func _render_fool_stats():
 	fool_vitality_label.text = "Vitality: " + str(GameState.vitality) + " / 25"
+	fool_vitality_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
+# ------------------------------------
+# ZONE COLORS
+# Reads colors from ThemeManager instead of hardcoded values
+# so switching themes recolors all zones automatically.
+# Like a CSS variable that updates everywhere it's used.
+# ------------------------------------
 func _setup_colors():
-	# Read zone colors from ThemeManager so themes apply globally
-	# Previously these were hardcoded Colors - now they're data-driven
 	var zone_map = {
 		$MarginContainer/VBoxContainer/TopHalf/DiscardSection: "discard",
 		$MarginContainer/VBoxContainer/TopHalf/AdventureSection: "adventure",
@@ -239,26 +375,32 @@ func _setup_colors():
 		stylebox.corner_radius_top_right = 8
 		stylebox.corner_radius_bottom_left = 8
 		stylebox.corner_radius_bottom_right = 8
-		stylebox.content_margin_left = 8
-		stylebox.content_margin_right = 8
-		stylebox.content_margin_top = 8
-		stylebox.content_margin_bottom = 8
+		# ← CHANGED: increased content margins from 8 to 16
+		# This gives cards more breathing room from zone edges
+		stylebox.content_margin_left = 16
+		stylebox.content_margin_right = 16
+		stylebox.content_margin_top = 16
+		stylebox.content_margin_bottom = 16
 		node.add_theme_stylebox_override("panel", stylebox)
 
+# ------------------------------------
+# LABEL STYLING
+# Centers all labels and sets font sizes.
+# ← CHANGED: fool_name_label removed from both lists since that node
+# was deleted in Part 3. It's no longer needed.
+# ------------------------------------
 func _setup_labels():
-	# Center all labels and set font sizes
-	# Like text-align: center in CSS
 	var all_labels = [
 		adventure_label, discard_label, deck_label,
 		wisdom_label, satchel_label, fool_label,
-		volition_label, strength_label, fool_name_label,
+		volition_label, strength_label,
 		fool_vitality_label
+		# ← CHANGED: fool_name_label removed
 	]
 	for label in all_labels:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.add_theme_font_size_override("font_size", 14)
 
-	# Make section headers slightly bigger
 	var header_labels = [
 		adventure_label, discard_label, deck_label,
 		wisdom_label, satchel_label, fool_label
@@ -266,14 +408,8 @@ func _setup_labels():
 	for label in header_labels:
 		label.add_theme_font_size_override("font_size", 16)
 		label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
-		
+
 func _on_discard_section_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
 			show_discard_viewer()
-			
-func _on_theme_changed(_new_theme: String):
-	# Re-apply colors when theme changes
-	# _render_all handles cards, _setup_colors handles zones
-	_setup_colors()
-	_render_all()

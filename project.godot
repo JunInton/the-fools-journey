@@ -21,6 +21,15 @@ CardData="*uid://bmchatu2jbfkb"
 GameState="*uid://8cxwitldvy1d"
 ThemeManager="*uid://e08kspoqwemw"
 
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

@@ -36,30 +36,39 @@ layout_mode = 2
 size_flags_horizontal = 3
 script = ExtResource("2_0xm2m")
 
-[node name="DiscardLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1476885969]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1280547032]
 layout_mode = 2
 
-[node name="DiscardContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection" unique_id=1982374041]
+[node name="DiscardLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection/VBoxContainer" unique_id=1476885969]
+layout_mode = 2
+
+[node name="DiscardContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DiscardSection/VBoxContainer" unique_id=1982374041]
 layout_mode = 2
 
 [node name="AdventureSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=1839026054]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="AdventureLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection" unique_id=2030343186]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection" unique_id=1409276434]
 layout_mode = 2
 
-[node name="AdventureContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection" unique_id=318752824]
+[node name="AdventureLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection/VBoxContainer" unique_id=2030343186]
+layout_mode = 2
+
+[node name="AdventureContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/AdventureSection/VBoxContainer" unique_id=318752824]
 layout_mode = 2
 
 [node name="DeckSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/TopHalf" unique_id=1338374531]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="DeckLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection" unique_id=1473264741]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection" unique_id=568079314]
 layout_mode = 2
 
-[node name="DeckContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection" unique_id=1716990065]
+[node name="DeckLabel" type="Label" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection/VBoxContainer" unique_id=1473264741]
+layout_mode = 2
+
+[node name="DeckContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/TopHalf/DeckSection/VBoxContainer" unique_id=904197478]
 layout_mode = 2
 
 [node name="BottomHalf" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=97574789]
@@ -72,10 +81,13 @@ size_flags_horizontal = 3
 script = ExtResource("2_0xm2m")
 zone_type = 2
 
-[node name="WisdomLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=712535957]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=297759013]
 layout_mode = 2
 
-[node name="WisdomContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection" unique_id=426253062]
+[node name="WisdomLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection/VBoxContainer" unique_id=712535957]
+layout_mode = 2
+
+[node name="WisdomContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/WisdomSection/VBoxContainer" unique_id=426253062]
 layout_mode = 2
 
 [node name="FoolSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=2059427067]
@@ -84,46 +96,49 @@ size_flags_horizontal = 3
 script = ExtResource("2_0xm2m")
 zone_type = 5
 
-[node name="FoolLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=179012294]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=1143371782]
 layout_mode = 2
 
-[node name="FoolStats" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=21613914]
+[node name="FoolLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer" unique_id=179012294]
 layout_mode = 2
 
-[node name="FoolEquipped" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection" unique_id=24086058]
+[node name="FoolEquipped" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer" unique_id=24086058]
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 6
 
-[node name="VolitionSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=1048487183]
+[node name="StrengthSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped" unique_id=740664616]
+custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
-script = ExtResource("2_0xm2m")
-zone_type = 4
-
-[node name="VolitionLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection" unique_id=1976374242]
-layout_mode = 2
-
-[node name="VolitionContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/VolitionSection" unique_id=1667617458]
-layout_mode = 2
-
-[node name="FoolCard" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=548065975]
-layout_mode = 2
-
-[node name="FoolNameLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard" unique_id=1960461322]
-layout_mode = 2
-
-[node name="FoolVitalityLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/FoolCard" unique_id=1356932279]
-layout_mode = 2
-
-[node name="StrengthSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped" unique_id=740664616]
-layout_mode = 2
+size_flags_vertical = 4
 script = ExtResource("2_0xm2m")
 zone_type = 3
 
-[node name="StrengthLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection" unique_id=136798400]
+[node name="StrengthLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection" unique_id=136798400]
 layout_mode = 2
 
-[node name="StrengthContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/FoolEquipped/StrengthSection" unique_id=516940721]
+[node name="StrengthContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection" unique_id=516940721]
 layout_mode = 2
+
+[node name="FoolCard" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped" unique_id=548065975]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+
+[node name="VolitionSection" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped" unique_id=1048487183]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 4
+script = ExtResource("2_0xm2m")
+zone_type = 4
+
+[node name="VolitionLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/VolitionSection" unique_id=1976374242]
+layout_mode = 2
+
+[node name="VolitionContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/VolitionSection" unique_id=1667617458]
+layout_mode = 2
+
+[node name="FoolVitalityLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer" unique_id=1356932279]
+layout_mode = 2
+size_flags_vertical = 8
 
 [node name="SatchelSection" type="PanelContainer" parent="MarginContainer/VBoxContainer/BottomHalf" unique_id=270684405]
 layout_mode = 2
@@ -131,8 +146,11 @@ size_flags_horizontal = 3
 script = ExtResource("2_0xm2m")
 zone_type = 1
 
-[node name="SatchelLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=292397448]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=1735793875]
 layout_mode = 2
 
-[node name="SatchelContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection" unique_id=1314779524]
+[node name="SatchelLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection/VBoxContainer" unique_id=292397448]
+layout_mode = 2
+
+[node name="SatchelContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/BottomHalf/SatchelSection/VBoxContainer" unique_id=1314779524]
 layout_mode = 2

@@ -105,3 +105,49 @@ func _royal_role(suit: String) -> String:
 	if suit == SUIT_COINS:
 		return ROLE_WISDOM
 	return ROLE_HELPER
+
+# ------------------------------------
+# IMAGE PATH RESOLVER
+# Translates card data into a file path for the card's image.
+# Returns empty string if no image exists for the current theme,
+# which Card.gd uses to fall back to colored rectangle display.
+# ------------------------------------
+func get_card_image_path(card: Dictionary) -> String:
+	# Only RWS theme has images currently
+	# Persona themes fall back to colored rectangles until
+	# their own image sets are added later
+	if ThemeManager.current_theme != ThemeManager.THEME_RWS:
+		return ""
+	return "res://assets/cards/rws/" + _get_rws_filename(card)
+
+func _get_rws_filename(card: Dictionary) -> String:
+	var suit = card.get("suit", "")
+	var rank = card.get("rank", 0)
+	var card_name = card.get("name", "")
+
+	# Major Arcana: maj00.jpg through maj21.jpg
+	if suit == SUIT_MAJOR:
+		return "maj%02d.jpg" % rank
+
+	# Minor Arcana prefix per suit
+	var prefix = ""
+	match suit:
+		SUIT_BATONS: prefix = "wands"
+		SUIT_CUPS:   prefix = "cups"
+		SUIT_SWORDS: prefix = "swords"
+		SUIT_COINS:  prefix = "pents"
+
+	if prefix == "":
+		return ""
+
+	# Ace through 10 use rank directly as two digit number
+	if rank >= 1 and rank <= 10:
+		return prefix + "%02d.jpg" % rank
+
+	# Royal cards have rank 0 in our data so we identify by name
+	if "Page" in card_name:   return prefix + "11.jpg"
+	if "Knight" in card_name: return prefix + "12.jpg"
+	if "Queen" in card_name:  return prefix + "13.jpg"
+	if "King" in card_name:   return prefix + "14.jpg"
+
+	return ""

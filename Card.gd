@@ -1,471 +1,442 @@
 extends PanelContainer
 
-# ------------------------------------
-# PROPERTIES
-# card_data holds this card's game data - like props in React
-# source_zone tracks WHERE this card currently lives so
-# GameState knows which array to remove it from when used
-# draggable = false on discard pile cards to prevent reuse
-# ------------------------------------
 var card_data: Dictionary = {}
 var source_zone: String = "adventure"
 var draggable: bool = true
 
-# @onready means "get this reference once the node tree is ready"
-# $ is shorthand for get_node()
-# This is like storing a ref in React: const ref = useRef()
+# ------------------------------------
+# @onready vars grab references to child nodes once the scene is ready
+# Like useRef in React - they let us access specific nodes by path
+# ------------------------------------
 @onready var card_name_label = $VBoxContainer/CardName
+@onready var card_border = $VBoxContainer/CardBorder         # ← NEW: inner colored panel
+@onready var card_image = $VBoxContainer/CardBorder/CardImage  # ← CHANGED: now nested inside CardBorder
 @onready var card_value_label = $VBoxContainer/CardValue
 
 func _ready():
-	# Lock card to a fixed size so it never stretches to fill its container
-	# SIZE_SHRINK_BEGIN = don't grow vertically, anchor to top
-	custom_minimum_size = Vector2(90, 130)
-	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	custom_minimum_size = Vector2(110, 0)
 
-	# Cards sitting in equipped slots need to let drop events pass through
-	# to the DropZone node underneath them. Without this, when the player
-	# drags a new card onto an equipped slot, the equipped card intercepts
-	# the drop instead of the DropZone handling the replacement.
-	# MOUSE_FILTER_IGNORE = like pointer-events: none in CSS —
-	# the node is visible but invisible to mouse events
+	var outer_style = StyleBoxFlat.new()
+	outer_style.bg_color = Color(0, 0, 0, 0)
+	add_theme_stylebox_override("panel", outer_style)
+
+	size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	# ← NEW: CardBorder shrinks to hug the image's natural width
+	# instead of stretching to fill the full 110px card width.
+	# This means the suit color only appears directly around the image,
+	# with no wide color bands on the sides.
+	card_border.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+	# Equipped cards sit on top of a DropZone - we ignore mouse events
+	# so clicks pass through to the DropZone beneath them
 	if source_zone in ["equipped_strength", "equipped_volition"]:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# If set_card() was called before this node entered the scene tree,
-	# card_data will already be populated - display it immediately
+	# CardBorder and CardImage must pass mouse events up to the parent Card node.
+	# Without MOUSE_FILTER_PASS, CardBorder (being a PanelContainer) consumes all
+	# clicks and drags before they reach _gui_input and _get_drag_data on the Card.
+	# This is like CSS pointer-events: none on the inner elements.
+	card_border.mouse_filter = Control.MOUSE_FILTER_PASS
+	card_image.mouse_filter = Control.MOUSE_FILTER_PASS
+
 	if card_data.size() > 0:
 		update_display()
 
-# Called by Main.gd after instantiating this card scene
-# Equivalent to passing props to a React component
+# ------------------------------------
+# SET CARD
+# Called by Main.gd after instantiating a Card scene
+# Like passing props to a React component
+# ------------------------------------
 func set_card(data: Dictionary):
 	card_data = data
-	# is_inside_tree() checks if this node is part of the active scene yet
-	# If it is, update visuals immediately
-	# If not, _ready() will call update_display() once the node is added
-	if is_inside_tree():
+	# is_node_ready() checks if _ready() has already fired
+	# If the node isn't ready yet, _ready() will call update_display() itself
+	if is_node_ready():
 		update_display()
 
+# ------------------------------------
+# UPDATE DISPLAY
+# Rebuilds the visual state of this card from card_data
+# Like the render/return of a React component
+# ------------------------------------
 func update_display():
+	# Name label sits ABOVE the colored border
 	card_name_label.text = card_data.get("name", "Unknown")
-	# autowrap_mode makes long names like "Wheel of Fortune" wrap to next line
-	# instead of getting clipped - like CSS word-wrap: break-word
 	card_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_name_label.max_lines_visible = 2
 	card_name_label.add_theme_font_size_override("font_size", 11)
 	card_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Reserve space for exactly 2 lines always, even if the name
+	# only needs 1 line. Without this, single-line names make cards shorter
+	# than two-line names, causing vertical misalignment in shared containers.
+	card_name_label.custom_minimum_size.y = 30
 
+	# Load the card image into the CardBorder's TextureRect
+	_load_card_image()
+
+	# Value label sits BELOW the colored border
 	var role = card_data.get("role", "")
 	var value = card_data.get("value", 0)
 
-	# Only show numeric value for cards that have meaningful values
-	# Helpers, Chance cards etc. just show their role name instead
-	if role in [
-		CardData.ROLE_CHALLENGE,
-		CardData.ROLE_VITALITY,
-		CardData.ROLE_STRENGTH,
-		CardData.ROLE_VOLITION,
-		CardData.ROLE_WISDOM
-	]:
+	if role in [CardData.ROLE_CHALLENGE, CardData.ROLE_VITALITY,
+				CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION]:
 		var value_text = "Value: " + str(value)
-		# If a Helper has doubled this card, show a marker
-		# The "doubled" key is set by GameState.deploy_helper()
 		if card_data.get("doubled", false):
-			value_text += "\n(boosted)"
+			value_text += " (boosted)"
 		card_value_label.text = value_text
+		card_value_label.visible = true
+
+	elif role == CardData.ROLE_WISDOM:
+		# Wisdom cards no longer show a value label
+		# Wisdom cards are spent as currency, their individual value
+		# is not meaningful to display
+		# Instead of hiding the label (which removes it from layout
+		# and makes wisdom cards shorter than other cards, causing misalignment),
+		# we keep it visible but blank. It still occupies the same vertical space
+		# so all cards remain the same height regardless of role.
+		card_value_label.text = ""
+		card_value_label.visible = true
+
 	else:
-		# capitalize() turns "helper" into "Helper" etc.
+		# Helpers, Chance, etc show their role name
 		card_value_label.text = role.capitalize()
+		card_value_label.visible = true
 
 	card_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	card_value_label.add_theme_font_size_override("font_size", 11)
+
 	_apply_color()
 
+# ------------------------------------
+# IMAGE LOADING
+# Tries to load the card's image for the current theme.
+# Falls back gracefully if the image doesn't exist.
+# ------------------------------------
+func _load_card_image():
+	var path = CardData.get_card_image_path(card_data)
+
+	if path == "" or not FileAccess.file_exists(path):
+		card_image.visible = false
+		return
+
+	var texture = load(path)
+	if texture != null:
+		card_image.texture = texture
+		card_image.visible = true
+	else:
+		card_image.visible = false
+
+# ------------------------------------
+# COLOR APPLICATION
+# ← CHANGED: Color is now applied to card_border (the inner PanelContainer)
+# instead of the outer card container.
+# This means the suit color only covers the image area,
+# and the name/value labels above and below are unaffected by the border size.
+# ------------------------------------
 func _apply_color():
-	var stylebox = StyleBoxFlat.new()
 	var suit = card_data.get("suit", "")
-
-	# Read color from ThemeManager instead of hardcoded values
-	# This means switching themes automatically recolors all cards
+	var stylebox = StyleBoxFlat.new()
 	stylebox.bg_color = ThemeManager.get_suit_color(suit)
-
-	# Lighten boosted cards regardless of theme
 	if card_data.get("doubled", false):
 		stylebox.bg_color = stylebox.bg_color.lightened(0.25)
-
 	stylebox.corner_radius_top_left = 6
 	stylebox.corner_radius_top_right = 6
 	stylebox.corner_radius_bottom_left = 6
 	stylebox.corner_radius_bottom_right = 6
-	add_theme_stylebox_override("panel", stylebox)
+	# draw_center = true so suit color fills behind the image
+	# Small margins so the color peeks out as a thin frame on all sides equally
+	stylebox.content_margin_left = 3
+	stylebox.content_margin_right = 3
+	stylebox.content_margin_top = 3
+	stylebox.content_margin_bottom = 3
+	card_border.add_theme_stylebox_override("panel", stylebox)
 
 # ------------------------------------
-# DRAG SOURCE
-# Godot calls _get_drag_data automatically when the player
-# starts dragging this node. Returning null cancels the drag.
-# Returning a value starts the drag with that value as the payload.
-# This is like the HTML5 ondragstart event.
+# CARD BACK DISPLAY
+# Used by the deck zone to show a face-down card.
+# Hides name/value labels and shows the card back image instead.
+# ← CHANGED: now applies stylebox to card_border, not self
+# ------------------------------------
+func show_card_back():
+	card_name_label.visible = false
+	card_value_label.visible = false
+
+	var back_path = "res://assets/cards/rws/card_back.jpg"
+	if FileAccess.file_exists(back_path):
+		var texture = load(back_path)
+		if texture != null:
+			card_image.texture = texture
+			card_image.visible = true
+
+	var stylebox = StyleBoxFlat.new()
+	stylebox.bg_color = Color(0.3, 0.3, 0.4)
+	stylebox.corner_radius_top_left = 6
+	stylebox.corner_radius_top_right = 6
+	stylebox.corner_radius_bottom_left = 6
+	stylebox.corner_radius_bottom_right = 6
+	stylebox.content_margin_left = 3
+	stylebox.content_margin_right = 3
+	stylebox.content_margin_top = 3
+	stylebox.content_margin_bottom = 3
+	card_border.add_theme_stylebox_override("panel", stylebox)
+
+# ------------------------------------
+# DRAG AND DROP - SOURCE
+# _get_drag_data fires when the player starts dragging this card.
+# Returns null to cancel the drag, or a Dictionary with card info.
+# Godot's drag system is like HTML5 draggable - return data to start,
+# the engine passes it to _can_drop_data and _drop_data on targets.
 # ------------------------------------
 func _get_drag_data(_at_position: Vector2):
-	# Non-draggable cards (discard pile) silently cancel drag
 	if not draggable:
 		return null
-	# Challenges are never draggable - player can only resolve them
+	# Challenges can never be dragged - they must be resolved in place
 	if card_data.get("role", "") == CardData.ROLE_CHALLENGE:
 		return null
-
-	# The drag preview is a lightweight node that follows the cursor
-	# We use a simple Label rather than a full card to keep it lightweight
-	var preview = Label.new()
-	preview.text = card_data.get("name", "Card")
-	preview.add_theme_font_size_override("font_size", 12)
-	preview.add_theme_color_override("font_color", Color.WHITE)
+	# Use duplicate() as the drag preview so it looks like the card
+	var preview = duplicate()
 	set_drag_preview(preview)
-
-	# The Dictionary returned here is the drag "payload"
-	# It gets passed to _can_drop_data and _drop_data on the target
-	# source_zone is critical - it tells GameState which array to remove from
-	return {
-		"card": card_data,
-		"source_zone": source_zone,
-		"card_node": self
-	}
+	return { "card": card_data, "source_zone": source_zone, "card_node": self }
 
 # ------------------------------------
-# DROP TARGET - card-on-card drops only
-# This handles two cases:
-# 1. Helper dragged onto a pip card to double its value
-# 2. Equipped Strength/Volition/Fool dragged onto a Challenge
-#
-# DropZone.gd handles drops onto zone areas (empty or not).
-# Card.gd handles drops onto specific individual cards.
+# DRAG AND DROP - TARGET (card on card)
+# Checks if an incoming drag can be dropped onto THIS card.
+# Only a few card-on-card interactions are valid:
+# Helper on same-suit pip, Equipped Volition/Strength on Challenge, Fool on Challenge.
 # ------------------------------------
-func _can_drop_data(_at_position: Vector2, data) -> bool:
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary:
 		return false
-
-	var dragged_card = data.get("card", {})
-	var dragged_role = dragged_card.get("role", "")
-	var dragged_suit = dragged_card.get("suit", "")
+	var card = data.get("card", {})
+	var source = data.get("source_zone", "")
+	var role = card.get("role", "")
 	var my_role = card_data.get("role", "")
 	var my_suit = card_data.get("suit", "")
-	var source = data.get("source_zone", "")
 
-	# HELPER RULE: Helper can only land on a card if:
-	# - Same suit (Cups helper on Cups pip etc.)
-	# - Target is a Strength, Volition, or Vitality card
-	# - Target hasn't already been doubled
-	# - Player has at least one Wisdom card equipped to pay the cost
-	if dragged_role == CardData.ROLE_HELPER:
-		if dragged_suit == my_suit:
-			if my_role in [CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION, CardData.ROLE_VITALITY]:
+	# Helper dropped onto a same-suit pip card to double its value
+	# Requires: same suit, target not already doubled, wisdom available
+	if role == CardData.ROLE_HELPER:
+		if my_role in [CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION, CardData.ROLE_VITALITY]:
+			if card.get("suit", "") == my_suit:
 				if not card_data.get("doubled", false):
-					return GameState.equipped_wisdom.size() > 0
+					if GameState.equipped_wisdom.size() > 0:
+						return true
 
-	# CHALLENGE RESOLUTION: Only already-equipped cards can attack challenges
-	# source_zone must be "equipped_volition" not just "adventure"
-	# to prevent accidentally dragging an unequipped sword at a challenge
-	if dragged_role == CardData.ROLE_VOLITION and source == "equipped_volition":
-		return my_role == CardData.ROLE_CHALLENGE
+	# Equipped volition resolves a challenge
+	if source == "equipped_volition" and my_role == CardData.ROLE_CHALLENGE:
+		return GameState.equipped_volition != null
 
-	if dragged_role == CardData.ROLE_STRENGTH and source == "equipped_strength":
-		return my_role == CardData.ROLE_CHALLENGE
+	# Equipped strength resolves a challenge
+	if source == "equipped_strength" and my_role == CardData.ROLE_CHALLENGE:
+		return GameState.equipped_strength != null
 
-	# The Fool can be dragged to any challenge to resolve it directly
-	# at the cost of the challenge's full value in vitality
-	if dragged_role == CardData.ROLE_FOOL:
-		return my_role == CardData.ROLE_CHALLENGE
+	# The Fool resolves a challenge directly (takes damage)
+	if source == "fool" and my_role == CardData.ROLE_CHALLENGE:
+		return true
 
 	return false
 
-func _drop_data(_at_position: Vector2, data):
-	var dragged_card = data.get("card", {})
-	var dragged_role = dragged_card.get("role", "")
+# ------------------------------------
+# DRAG AND DROP - TARGET (receive drop)
+# Routes the dropped card to the appropriate GameState function.
+# GameState handles all the logic; this just identifies what happened.
+# ------------------------------------
+func _drop_data(_at_position: Vector2, data: Variant):
+	var card = data.get("card", {})
 	var source = data.get("source_zone", "")
-	var from_satchel = source == "satchel"
 
-	if dragged_role == CardData.ROLE_HELPER:
-		# deploy_helper handles: spending wisdom, doubling value, discarding helper
-		GameState.deploy_helper(dragged_card, card_data, from_satchel)
+	if card.get("role", "") == CardData.ROLE_HELPER:
+		GameState.deploy_helper(card, card_data, source == "satchel")
+		return
 
-	elif dragged_role == CardData.ROLE_VOLITION and source == "equipped_volition":
-		# resolve_with_volition: subtracts volition from challenge value
-		# if challenge hits 0 both are discarded, otherwise volition is discarded
-		# and challenge remains with reduced value
+	if source == "equipped_volition":
 		GameState.resolve_with_volition(card_data)
+		return
 
-	elif dragged_role == CardData.ROLE_STRENGTH and source == "equipped_strength":
-		# resolve_with_strength: subtracts challenge from strength value
-		# strength wins if it has more value, otherwise fool takes damage
+	if source == "equipped_strength":
 		GameState.resolve_with_strength(card_data)
+		return
 
-	elif dragged_role == CardData.ROLE_FOOL:
-		# resolve_directly: subtracts challenge value straight from vitality
+	if source == "fool":
 		GameState.resolve_directly(card_data)
 
 # ------------------------------------
-# DOUBLE CLICK SHORTCUTS AND CHALLENGE DIALOG
-# _gui_input receives ALL input events on this node
-# We filter down to just double-click left mouse button
-# These are convenience shortcuts - drag and drop still works too
+# INPUT HANDLING
+# Double-click opens context-appropriate dialogs.
+# Single clicks are handled by Godot's drag system automatically.
 # ------------------------------------
 func _gui_input(event: InputEvent):
+	if not draggable:
+		return
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
+			_handle_double_click()
 
-			# Non-draggable cards (discard pile) should not respond to
-			# double-click either - same restriction as drag
-			if not draggable:
+func _handle_double_click():
+	var role = card_data.get("role", "")
+	match role:
+		CardData.ROLE_CHANCE:
+			_confirm_action("Reshuffle the adventure field into the deck?", func():
+				GameState.use_chance(card_data, source_zone == "satchel"))
+
+		CardData.ROLE_WISDOM:
+			if source_zone == "equipped_wisdom":
 				return
+			GameState.equip_wisdom(card_data, source_zone == "satchel")
 
-			var role = card_data.get("role", "")
-			var from_satchel = source_zone == "satchel"
+		CardData.ROLE_STRENGTH:
+			if source_zone == "equipped_strength":
+				return
+			if GameState.equipped_strength != null:
+				_confirm_action("Replace equipped Strength card?", func():
+					GameState.equip_strength(card_data, source_zone == "satchel"))
+			else:
+				GameState.equip_strength(card_data, source_zone == "satchel")
 
-			match role:
-				CardData.ROLE_CHANCE:
-					# Reshuffle is destructive and irreversible - always confirm
-					_confirm_action(
-						"Use Chance card to reshuffle the Adventure Field?",
-						func(): GameState.use_chance(card_data, from_satchel)
-					)
+		CardData.ROLE_VOLITION:
+			if source_zone == "equipped_volition":
+				return
+			if GameState.equipped_volition != null:
+				_confirm_action("Replace equipped Volition card?", func():
+					GameState.equip_volition(card_data, source_zone == "satchel"))
+			else:
+				GameState.equip_volition(card_data, source_zone == "satchel")
 
-				CardData.ROLE_WISDOM:
-					# Guard: skip if this card is already in the equipped slot
-					# Without this, double-clicking an equipped wisdom card would
-					# try to re-equip it, adding a duplicate to the array
-					if source_zone == "equipped_wisdom":
-						return
-					# Auto-equip if there's space - no confirmation needed
-					# since equipping wisdom is always safe and reversible
-					if GameState.equipped_wisdom.size() < 3:
-						GameState.equip_wisdom(card_data, from_satchel)
-					else:
-						print("Wisdom slots full!")
+		CardData.ROLE_VITALITY:
+			if GameState.vitality >= GameState.MAX_VITALITY:
+				_confirm_action("Vitality is full. Discard this card?", func():
+					GameState.discard_card(card_data, source_zone == "satchel"))
+			else:
+				GameState.replenish_vitality(card_data, source_zone == "satchel")
 
-				CardData.ROLE_STRENGTH:
-					# Guard: skip if this IS the currently equipped strength card
-					# Prevents the already-equipped card from showing a
-					# "replace yourself?" dialog when double-clicked
-					if source_zone == "equipped_strength":
-						return
-					if GameState.equipped_strength == null:
-						# Empty slot - equip immediately, no confirmation needed
-						GameState.equip_strength(card_data, from_satchel)
-					else:
-						# Replacing discards the old card - confirm first
-						_confirm_action(
-							"Replace equipped Strength card?",
-							func(): GameState.equip_strength(card_data, from_satchel)
-						)
+		CardData.ROLE_CHALLENGE:
+			_show_challenge_dialog()
 
-				CardData.ROLE_VOLITION:
-					# Same guard pattern as Strength above
-					if source_zone == "equipped_volition":
-						return
-					if GameState.equipped_volition == null:
-						GameState.equip_volition(card_data, from_satchel)
-					else:
-						_confirm_action(
-							"Replace equipped Volition card?",
-							func(): GameState.equip_volition(card_data, from_satchel)
-						)
-
-				CardData.ROLE_VITALITY:
-					if GameState.vitality == GameState.MAX_VITALITY:
-						# Healing at full health wastes the card - confirm first
-						_confirm_action(
-							"Vitality is already full. Discard this card anyway?",
-							func(): GameState.replenish_vitality(card_data, from_satchel)
-						)
-					else:
-						# Safe heal - no confirmation needed
-						GameState.replenish_vitality(card_data, from_satchel)
-
-				CardData.ROLE_CHALLENGE:
-					# Challenges can't be dragged so double-click is the
-					# primary way to interact with them besides drag-and-drop
-					# from equipped cards. Opens a multi-option dialog.
-					_show_challenge_dialog()
-				
-				CardData.ROLE_HELPER:
-					# Only respond if this helper has valid targets to double
-					# Checks adventure field, satchel, and equipped cards for same-suit targets
-					if GameState.equipped_wisdom.size() == 0:
-						print("No Wisdom available to deploy Helper!")
-						return
-					var targets = _find_helper_targets()
-					if targets.is_empty():
-						print("No valid targets for this Helper!")
-						return
-					_show_helper_dialog(targets)
+		CardData.ROLE_HELPER:
+			if GameState.equipped_wisdom.size() == 0:
+				return
+			var targets = _find_helper_targets()
+			if targets.is_empty():
+				return
+			_show_helper_dialog(targets)
 
 # ------------------------------------
 # CHALLENGE RESOLUTION DIALOG
-# Shows multiple resolution options for a challenge card.
-# We build this manually with a PopupPanel + VBoxContainer because
-# Godot's built-in ConfirmationDialog only supports two buttons (OK/Cancel).
-# This is like building a custom modal in React.
+# Shows a popup with all available resolution options.
+# Each button previews the outcome so the player can make an informed choice.
 # ------------------------------------
 func _show_challenge_dialog():
-	var challenge_value = card_data.get("value", 0)
-	var challenge_name = card_data.get("name", "Challenge")
-
-	# PopupPanel is a bare popup window we can fill with any nodes we want
-	# Like a <dialog> element in HTML
 	var popup = PopupPanel.new()
-	popup.title = "Resolve " + challenge_name + " (Value: " + str(challenge_value) + ")"
-
-	# VBoxContainer stacks buttons vertically inside the popup
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
-	var title_label = Label.new()
-	title_label.text = "How do you resolve this challenge?"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title_label)
+	var title = Label.new()
+	title.text = "Resolve: " + card_data.get("name", "") + " (Value: " + str(card_data.get("value", 0)) + ")"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
 
-	# Only show Volition option if a Volition card is actually equipped
-	# The button text previews the outcome so the player can make
-	# an informed decision before committing
+	# Volition option - only shows if a volition card is equipped
 	if GameState.equipped_volition != null:
-		var vol_value = GameState.equipped_volition.value
+		var vol = GameState.equipped_volition
+		var diff = card_data.get("value", 0) - vol.get("value", 0)
+		var label = "Use Volition (" + str(vol.get("value", 0)) + ")"
+		if diff > 0:
+			label += " — Challenge reduced to " + str(diff)
+		else:
+			label += " — Challenge resolved!"
 		var btn = Button.new()
-		btn.text = "Use Volition (" + str(vol_value) + ") — " + (
-			"Overcomes challenge" if vol_value >= challenge_value
-			else "Depletes challenge by " + str(vol_value)
-		)
-		# The lambda captures popup and card_data from the outer scope
-		# Like a closure in JS: () => { popup.close(); resolve(); }
+		btn.text = label
 		btn.pressed.connect(func():
 			popup.queue_free()
-			GameState.resolve_with_volition(card_data)
-		)
+			GameState.resolve_with_volition(card_data))
 		vbox.add_child(btn)
 
-	# Only show Strength option if a Strength card is equipped
+	# Strength option - only shows if a strength card is equipped
 	if GameState.equipped_strength != null:
-		var str_value = GameState.equipped_strength.value
-		var damage = max(0, challenge_value - str_value)
+		var str_card = GameState.equipped_strength
+		var sv = str_card.get("value", 0)
+		var cv = card_data.get("value", 0)
+		var outcome = "Use Strength (" + str(sv) + ")"
+		if sv == cv:
+			outcome += " — Both discarded"
+		elif sv > cv:
+			outcome += " — Challenge discarded, Strength depleted to " + str(sv - cv)
+		else:
+			outcome += " — Both discarded, Fool takes " + str(cv - sv) + " damage"
 		var btn = Button.new()
-		btn.text = "Use Strength (" + str(str_value) + ") — " + (
-			"Endures fully" if str_value >= challenge_value
-			else "Takes " + str(damage) + " damage"
-		)
+		btn.text = outcome
 		btn.pressed.connect(func():
 			popup.queue_free()
-			GameState.resolve_with_strength(card_data)
-		)
+			GameState.resolve_with_strength(card_data))
 		vbox.add_child(btn)
 
-	# Direct resolution is always available regardless of equipped cards
-	# Shows the exact vitality cost upfront so there are no surprises
+	# Direct resolution is always available - Fool takes full damage
 	var direct_btn = Button.new()
-	direct_btn.text = "Resolve Directly — costs " + str(challenge_value) + " vitality"
+	direct_btn.text = "Resolve Directly — Fool takes " + str(card_data.get("value", 0)) + " damage"
 	direct_btn.pressed.connect(func():
 		popup.queue_free()
-		GameState.resolve_directly(card_data)
-	)
+		GameState.resolve_directly(card_data))
 	vbox.add_child(direct_btn)
 
-	# Cancel button dismisses the dialog without taking any action
 	var cancel_btn = Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.pressed.connect(func(): popup.queue_free())
 	vbox.add_child(cancel_btn)
 
-	# Add vbox into popup, add popup to root scene so it renders on top
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
-	# popup_centered takes a suggested minimum size as a Vector2
-	popup.popup_centered(Vector2(320, 200))
+	popup.popup_centered(Vector2(380, 200))
 
 # ------------------------------------
-# CONFIRMATION DIALOG HELPER
-# Reusable function that creates a popup with confirm/cancel buttons
-# message = the question shown to the player
-# callback = the function to run if they confirm
-#
-# Callable is GDScript's way of passing a function as a value
-# func(): GameState.do_something() is like () => gameState.doSomething() in JS
+# CONFIRMATION DIALOG
+# Generic reusable confirm popup - like window.confirm() in JS
+# but non-blocking. Takes a message and a callback to run on confirm.
 # ------------------------------------
 func _confirm_action(message: String, callback: Callable):
 	var dialog = ConfirmationDialog.new()
 	dialog.dialog_text = message
-	dialog.title = "Confirm"
-
-	# Add to root so the dialog renders on top of all game UI
-	# Like appending a modal to document.body in JS
 	get_tree().root.add_child(dialog)
-	dialog.popup_centered()
-
-	# Connect the confirmed signal to the callback
-	# CONNECT_ONE_SHOT means this connection auto-removes after firing once
-	# Prevents the same action firing multiple times if dialog is reused
-	# Like addEventListener with { once: true } in JS
 	dialog.confirmed.connect(callback, CONNECT_ONE_SHOT)
-
-	# Clean up the dialog node after it closes regardless of the player's choice
-	# We check !dialog.visible because visibility_changed fires on both
-	# show and hide - we only want to clean up on hide
-	var cleanup = func():
+	dialog.visibility_changed.connect(func():
 		if not dialog.visible:
-			dialog.queue_free()
-	dialog.visibility_changed.connect(cleanup, CONNECT_ONE_SHOT)
+			dialog.queue_free(), CONNECT_ONE_SHOT)
+	dialog.popup_centered()
 
 # ------------------------------------
 # HELPER TARGET FINDER
-# Searches all zones for valid cards this Helper can double:
-# - Same suit as this Helper
-# - Role is Strength, Volition, or Vitality
-# - Not already doubled
-# Returns an array of Dictionaries describing each valid target,
-# including where the card lives so GameState can find it
+# Searches all zones for valid cards this Helper can double.
+# Returns an array of Dictionaries describing each valid target.
 # ------------------------------------
 func _find_helper_targets() -> Array:
 	var targets = []
 	var my_suit = card_data.get("suit", "")
 
-	# Check adventure field
 	for card in GameState.adventure_field:
 		if _is_valid_helper_target(card, my_suit):
-			targets.append({
-				"card": card,
-				"zone": "adventure",
-				"label": card.name + " (Adventure Field) — Value: " + str(card.value)
-			})
+			targets.append({"card": card, "zone": "adventure",
+				"label": card.name + " (Adventure Field) — Value: " + str(card.value)})
 
-	# Check satchel
 	for card in GameState.satchel:
 		if _is_valid_helper_target(card, my_suit):
-			targets.append({
-				"card": card,
-				"zone": "satchel",
-				"label": card.name + " (Satchel) — Value: " + str(card.value)
-			})
+			targets.append({"card": card, "zone": "satchel",
+				"label": card.name + " (Satchel) — Value: " + str(card.value)})
 
-	# Check equipped strength - Batons helper can double it
 	if GameState.equipped_strength != null:
 		var s = GameState.equipped_strength
 		if _is_valid_helper_target(s, my_suit):
-			targets.append({
-				"card": s,
-				"zone": "equipped_strength",
-				"label": s.name + " (Equipped Strength) — Value: " + str(s.value)
-			})
+			targets.append({"card": s, "zone": "equipped_strength",
+				"label": s.name + " (Equipped Strength) — Value: " + str(s.value)})
 
-	# Check equipped volition - Swords helper can double it
 	if GameState.equipped_volition != null:
 		var v = GameState.equipped_volition
 		if _is_valid_helper_target(v, my_suit):
-			targets.append({
-				"card": v,
-				"zone": "equipped_volition",
-				"label": v.name + " (Equipped Volition) — Value: " + str(v.value)
-			})
+			targets.append({"card": v, "zone": "equipped_volition",
+				"label": v.name + " (Equipped Volition) — Value: " + str(v.value)})
 
 	return targets
 
-# Small helper that checks all three conditions a target must meet
 func _is_valid_helper_target(card: Dictionary, required_suit: String) -> bool:
 	return (
 		card.get("suit", "") == required_suit and
@@ -475,39 +446,30 @@ func _is_valid_helper_target(card: Dictionary, required_suit: String) -> bool:
 
 # ------------------------------------
 # HELPER DEPLOYMENT DIALOG
-# Shows a list of valid targets the player can choose to double
-# Each button shows the card name, its zone, and current value
-# so the player can make an informed choice
+# Shows valid targets for this Helper card to double.
+# Each button shows card name, zone, and current value.
 # ------------------------------------
 func _show_helper_dialog(targets: Array):
 	var popup = PopupPanel.new()
-	popup.title = "Deploy " + card_data.get("name", "Helper")
-
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
 	var title_label = Label.new()
-	title_label.text = "Choose a card to double its value:\n(costs 1 Wisdom card)"
+	title_label.text = "Choose a card to double its value:\n(costs 1 Wisdom)"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title_label)
 
-	# Build one button per valid target
 	for target in targets:
 		var btn = Button.new()
 		btn.text = target.label
-
-		# Capture target in closure - like closing over a variable in JS forEach
-		# Without the local var capture, all buttons would reference
-		# the last value of 'target' after the loop completes
-		var captured_target = target
+		# Capture target in a local var to avoid closure-over-loop-variable bug
+		# Without this, all buttons would reference the last value of 'target'
+		var captured = target
 		btn.pressed.connect(func():
 			popup.queue_free()
-			var from_satchel = source_zone == "satchel"
-			GameState.deploy_helper(card_data, captured_target.card, from_satchel)
-		)
+			GameState.deploy_helper(card_data, captured.card, source_zone == "satchel"))
 		vbox.add_child(btn)
 
-	# Cancel button - no action taken
 	var cancel_btn = Button.new()
 	cancel_btn.text = "Cancel"
 	cancel_btn.pressed.connect(func(): popup.queue_free())
@@ -516,3 +478,7 @@ func _show_helper_dialog(targets: Array):
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
 	popup.popup_centered(Vector2(360, 220))
+
+# Preloaded here for the drag preview duplicate()
+# Must be at the bottom to avoid circular reference issues
+const CardScene = preload("res://Card.tscn")

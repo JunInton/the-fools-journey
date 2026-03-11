@@ -26,14 +26,16 @@ func _ready():
 	ThemeManager.theme_changed.connect(_on_theme_changed)
 
 func _apply_theme():
-	var theme = ThemeManager.get_current()
+	# Renamed from 'theme' to 'theme_data' to avoid shadowing
+	# Control's built-in 'theme' property
+	var theme_data = ThemeManager.get_current()
 
-	title_label.text = theme["name"]
+	title_label.text = theme_data["name"]
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 48)
-	title_label.add_theme_color_override("font_color", theme["label_color"])
+	title_label.add_theme_color_override("font_color", theme_data["label_color"])
 
-	subtitle_label.text = theme["subtitle"]
+	subtitle_label.text = theme_data["subtitle"]
 	subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle_label.add_theme_font_size_override("font_size", 18)
 	subtitle_label.add_theme_color_override("font_color", Color(0.7, 0.65, 0.9))
@@ -43,7 +45,7 @@ func _apply_theme():
 
 	# Apply background color from theme
 	var stylebox = StyleBoxFlat.new()
-	stylebox.bg_color = theme["background"]
+	stylebox.bg_color = theme_data["background"]
 	add_theme_stylebox_override("panel", stylebox)
 
 func _on_theme_changed(_new_theme: String):
