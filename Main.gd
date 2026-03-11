@@ -48,6 +48,9 @@ func _ready():
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
 	
+	# Whenever Theme changes, we call _on_theme_changed
+	ThemeManager.theme_changed.connect(_on_theme_changed)
+	
 	# Connect double-click on the entire DiscardSection panel to open the viewer
 	# We use the section panel rather than just the label because _setup_labels()
 	# runs after this and resets label properties, breaking the label connection.
@@ -71,11 +74,16 @@ func _on_state_changed():
 
 func _on_game_over(reason: String):
 	print("GAME OVER: ", reason)
-	# We'll add a proper screen for this later
+	# Small delay before transitioning so the player can see
+	# the final state of the board before the screen changes
+	# get_tree().create_timer() is like setTimeout() in JS
+	await get_tree().create_timer(1.5).timeout
+	get_tree().change_scene_to_file("res://LoseScreen.tscn")
 
 func _on_game_won():
 	print("YOU WIN!")
-	# We'll add a proper screen for this later
+	await get_tree().create_timer(1.5).timeout
+	get_tree().change_scene_to_file("res://WinScreen.tscn")
 
 # ------------------------------------
 # RENDERING
@@ -214,19 +222,19 @@ func _render_fool_stats():
 	fool_vitality_label.text = "Vitality: " + str(GameState.vitality) + " / 25"
 
 func _setup_colors():
-	# Helper that creats a colored background panel for any Control node
-	# Like setting a background color in CSS
-	var sections = {
-		$MarginContainer/VBoxContainer/TopHalf/DiscardSection: Color(0.15, 0.15, 0.2),
-		$MarginContainer/VBoxContainer/TopHalf/AdventureSection: Color(0.1, 0.2, 0.1),
-		$MarginContainer/VBoxContainer/TopHalf/DeckSection: Color(0.15, 0.15, 0.2),
-		$MarginContainer/VBoxContainer/BottomHalf/WisdomSection: Color(0.3, 0.25, 0.05),
-		$MarginContainer/VBoxContainer/BottomHalf/FoolSection: Color(0.2, 0.1, 0.3),
-		$MarginContainer/VBoxContainer/BottomHalf/SatchelSection: Color(0.1, 0.2, 0.25),
+	# Read zone colors from ThemeManager so themes apply globally
+	# Previously these were hardcoded Colors - now they're data-driven
+	var zone_map = {
+		$MarginContainer/VBoxContainer/TopHalf/DiscardSection: "discard",
+		$MarginContainer/VBoxContainer/TopHalf/AdventureSection: "adventure",
+		$MarginContainer/VBoxContainer/TopHalf/DeckSection: "deck",
+		$MarginContainer/VBoxContainer/BottomHalf/WisdomSection: "wisdom",
+		$MarginContainer/VBoxContainer/BottomHalf/FoolSection: "fool",
+		$MarginContainer/VBoxContainer/BottomHalf/SatchelSection: "satchel",
 	}
-	for node in sections:
+	for node in zone_map:
 		var stylebox = StyleBoxFlat.new()
-		stylebox.bg_color = sections[node]
+		stylebox.bg_color = ThemeManager.get_zone_color(zone_map[node])
 		stylebox.corner_radius_top_left = 8
 		stylebox.corner_radius_top_right = 8
 		stylebox.corner_radius_bottom_left = 8
@@ -263,3 +271,9 @@ func _on_discard_section_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
 			show_discard_viewer()
+			
+func _on_theme_changed(_new_theme: String):
+	# Re-apply colors when theme changes
+	# _render_all handles cards, _setup_colors handles zones
+	_setup_colors()
+	_render_all()

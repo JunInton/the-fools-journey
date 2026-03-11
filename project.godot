@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="The Fool's Journey"
-run/main_scene="uid://deujp5ruvh6h1"
+run/main_scene="uid://bwhr4n1eoqkn4"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 CardData="*uid://bmchatu2jbfkb"
 GameState="*uid://8cxwitldvy1d"
+ThemeManager="*uid://e08kspoqwemw"
 
 [physics]
 

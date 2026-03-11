@@ -82,35 +82,21 @@ func update_display():
 	_apply_color()
 
 func _apply_color():
-	# StyleBoxFlat is Godot's equivalent of a CSS background style
-	# We create a new one each time rather than reusing, because each
-	# card instance needs its own independent style object
 	var stylebox = StyleBoxFlat.new()
 	var suit = card_data.get("suit", "")
 
-	# Color-code by suit so players can identify cards at a glance
-	match suit:
-		CardData.SUIT_CUPS:    stylebox.bg_color = Color(0.2, 0.4, 0.8)  # blue
-		CardData.SUIT_BATONS:  stylebox.bg_color = Color(0.2, 0.6, 0.2)  # green
-		CardData.SUIT_SWORDS:  stylebox.bg_color = Color(0.7, 0.2, 0.2)  # red
-		CardData.SUIT_COINS:   stylebox.bg_color = Color(0.7, 0.6, 0.1)  # gold
-		CardData.SUIT_MAJOR:   stylebox.bg_color = Color(0.4, 0.1, 0.6)  # purple
-		_:                     stylebox.bg_color = Color(0.3, 0.3, 0.3)  # grey fallback
-		
-	# If a helper has boosted this card, brighten the color slightly
-	# This gives a visual cue that the card has been modified
-	# like a CSS brightness filter on a highlighted element
+	# Read color from ThemeManager instead of hardcoded values
+	# This means switching themes automatically recolors all cards
+	stylebox.bg_color = ThemeManager.get_suit_color(suit)
+
+	# Lighten boosted cards regardless of theme
 	if card_data.get("doubled", false):
 		stylebox.bg_color = stylebox.bg_color.lightened(0.25)
 
-	# Rounded corners - like border-radius: 6px in CSS
 	stylebox.corner_radius_top_left = 6
 	stylebox.corner_radius_top_right = 6
 	stylebox.corner_radius_bottom_left = 6
 	stylebox.corner_radius_bottom_right = 6
-
-	# add_theme_stylebox_override applies this style to the "panel"
-	# slot of PanelContainer - like setting a CSS class on a div
 	add_theme_stylebox_override("panel", stylebox)
 
 # ------------------------------------

@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://8ft5pxdr4gaj"]
+
+[ext_resource type="Script" uid="uid://bhyjeqpnj38xq" path="res://LoseScreen.gd" id="1_cgnti"]
+
+[node name="LoseScreen" type="Control" unique_id=300489293]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_cgnti")
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=732143514]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=1847878794]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=312204944]
+layout_mode = 2
+
+[node name="StatsLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=425058112]
+layout_mode = 2
+
+[node name="PlayAgainBtn" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1682628841]
+layout_mode = 2
