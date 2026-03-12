@@ -244,4 +244,4 @@ WINNING AND LOSING
   Loss  Vitality reaches 0 or below.
   Win   All Challenges overcome and the deck is exhausted.
   Tie   If Vitality hits 0 on the very final Challenge, consider the
-        story created by the journey to decide the outcome."""
+		story created by the journey to decide the outcome."""
