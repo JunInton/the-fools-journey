@@ -30,6 +30,7 @@ const WIN_TEXT = {
 }
 
 func _ready():
+	AudioManager.set_screen("win")
 	var text = WIN_TEXT[ThemeManager.current_theme]
 	
 	title_label.text = text["title"]
@@ -57,4 +58,5 @@ func _on_play_again_pressed():
 	# Return to main menu rather than restarting directly
 	# This lets the player trigger the Konami code theme switch
 	# before starting a new run, and is cleaner UX overall
+	AudioManager.play_menu_click()
 	get_tree().change_scene_to_file("res://MainMenu.tscn")

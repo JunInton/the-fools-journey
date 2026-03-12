@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 CardData="*uid://bmchatu2jbfkb"
 GameState="*uid://8cxwitldvy1d"
 ThemeManager="*uid://e08kspoqwemw"
+AudioManager="*uid://b300k7pnqfvdl"
 
 [display]
 

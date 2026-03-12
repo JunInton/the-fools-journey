@@ -3,6 +3,7 @@ extends Control
 @onready var title_label = $CenterContainer/VBoxContainer/TitleLabel
 @onready var subtitle_label = $CenterContainer/VBoxContainer/SubtitleLabel
 @onready var start_button = $CenterContainer/VBoxContainer/StartButton
+@onready var rules_button = $CenterContainer/VBoxContainer/RulesButton
 
 # ------------------------------------
 # SECRET CODE
@@ -18,12 +19,51 @@ const SECRET_CODE = [
 var input_buffer: Array = []
 
 func _ready():
+	AudioManager.set_screen("menu")
 	_apply_theme()
 	start_button.pressed.connect(_on_start_pressed)
 
 	# Listen for theme changes in case player switches mid-menu
 	# (unlikely but keeps the menu reactive)
 	ThemeManager.theme_changed.connect(_on_theme_changed)
+	
+	# Audio toggle buttons on the menu screen
+	var audio_controls = HBoxContainer.new()
+	audio_controls.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	# Offset slightly from the corner so it's not right on the edge
+	audio_controls.position = Vector2(8, 8)
+	audio_controls.add_theme_constant_override("separation", 4)
+	add_child(audio_controls)
+
+	var music_btn = Button.new()
+	# 🔊 = music on, 🔇 = music off
+	music_btn.text = "🔊"
+	music_btn.toggle_mode = true
+	music_btn.button_pressed = AudioManager.music_enabled
+	music_btn.custom_minimum_size = Vector2(32, 32)
+	music_btn.pressed.connect(func():
+		AudioManager.toggle_music()
+		music_btn.text = "🔊" if AudioManager.music_enabled else "🔇")
+	audio_controls.add_child(music_btn)
+
+	var sfx_btn = Button.new()
+	# 🔔 = sfx on, 🔕 = sfx off
+	sfx_btn.text = "🔔"
+	sfx_btn.toggle_mode = true
+	sfx_btn.button_pressed = AudioManager.sfx_enabled
+	sfx_btn.custom_minimum_size = Vector2(32, 32)
+	sfx_btn.pressed.connect(func():
+		AudioManager.toggle_sfx()
+		sfx_btn.text = "🔔" if AudioManager.sfx_enabled else "🔕")
+	audio_controls.add_child(sfx_btn)
+	
+	rules_button.text = "Rules"
+	rules_button.pressed.connect(_on_rules_pressed)
+
+func _on_rules_pressed():
+	AudioManager.play_menu_click()
+	ThemeManager.rules_return_scene = "res://MainMenu.tscn"
+	get_tree().change_scene_to_file("res://RulesScreen.tscn")
 
 func _apply_theme():
 	# Renamed from 'theme' to 'theme_data' to avoid shadowing
@@ -53,6 +93,7 @@ func _on_theme_changed(_new_theme: String):
 	_apply_theme()
 
 func _on_start_pressed():
+	AudioManager.play_menu_click()
 	get_tree().change_scene_to_file("res://main.tscn")
 
 # ------------------------------------
@@ -78,8 +119,8 @@ func _input(event: InputEvent):
 
 func _on_secret_activated():
 	ThemeManager.cycle_theme()
-	# Visual feedback so the player knows it worked
-	# We'll add a sound effect here later when audio is set up
+	# Visual and audio feedback so the player knows it worked
+	AudioManager.play_sfx("ping")
 	print("Secret code activated! Theme: ", ThemeManager.current_theme)
 	# Flash the subtitle as confirmation
 	subtitle_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))

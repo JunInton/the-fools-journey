@@ -10,6 +10,18 @@ signal state_changed  # fires whenever anything updates
 signal game_over(reason: String)
 signal game_won
 
+# Specific audio signals so AudioManager knows exactly what happened
+# One signal per meaningful audio moment - keeps sounds from stacking up
+signal sfx_card_deal
+signal sfx_card_discard
+signal sfx_card_equip
+signal sfx_challenge_resolved
+signal sfx_vitality_heal
+signal sfx_vitality_damage
+signal sfx_shuffle
+signal sfx_sword_hit
+signal sfx_wisdom_equip
+
 # ------------------------------------
 # GAME STATE
 # ------------------------------------
@@ -43,6 +55,9 @@ var cards_resolved_this_adventure: int = 0
 
 # The carry-over card from previous adventure
 var carried_over_card = null
+
+# Guard flag for Chance interaction quirks
+var _adventure_end_pending: bool = false
 
 # ------------------------------------
 # SETUP
@@ -94,6 +109,7 @@ func _deal_adventure():
 	# pop_back() takes from the end of the array - like JS .pop()
 	while adventure_field.size() < ADVENTURE_FIELD_SIZE and deck.size() > 0:
 		adventure_field.append(deck.pop_back())
+		emit_signal("sfx_card_deal")
 
 	print("Adventure dealt. Field: ", adventure_field.size(), 
 		" cards. Deck remaining: ", deck.size())
@@ -120,6 +136,7 @@ func store_in_satchel(card: Dictionary) -> bool:
 	# which bypassed _on_card_resolved entirely
 	_remove_from_source(card, false)
 	satchel.append(card)
+	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
 	print("Stored in satchel: ", card.name)
 	return true
@@ -136,6 +153,7 @@ func discard_card(card: Dictionary, from_satchel: bool = false) -> bool:
 	# and triggers _on_card_resolved when card leaves the field
 	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
+	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
 	print("Discarded: ", card.name)
 	return true
@@ -150,6 +168,7 @@ func equip_wisdom(card: Dictionary, from_satchel: bool = false) -> bool:
 
 	_remove_from_source(card, from_satchel)
 	equipped_wisdom.append(card)
+	emit_signal("sfx_wisdom_equip")
 	emit_signal("state_changed")
 	print("Equipped wisdom: ", card.name)
 	return true
@@ -164,6 +183,7 @@ func equip_strength(card: Dictionary, from_satchel: bool = false) -> bool:
 		print("Old Strength discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_strength = card
+	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
 	print("Equipped strength: ", card.name)
 	return true
@@ -178,6 +198,7 @@ func equip_volition(card: Dictionary, from_satchel: bool = false) -> bool:
 		print("Old Volition discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_volition = card
+	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
 	print("Equipped volition: ", card.name)
 	return true
@@ -186,16 +207,39 @@ func equip_volition(card: Dictionary, from_satchel: bool = false) -> bool:
 func use_chance(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_CHANCE:
 		return false
-
-	_remove_from_source(card, from_satchel)
+	
+	# ← Cancel any deferred _end_adventure() from a recent card resolution
+	# Without this, the timer fires after use_chance() already dealt new cards
+	# resulting in a double deal
+	_adventure_end_pending = false
+	
+	# ← CHANGED: erase directly instead of _remove_from_source()
+	# _remove_from_source() would trigger _on_card_resolved() which
+	# queues _end_adventure() — but use_chance() handles its own deal,
+	# so we skip that path entirely to prevent a double deal
+	if from_satchel:
+		satchel.erase(card)
+	else:
+		adventure_field.erase(card)
 	discard_pile.append(card)
 
 	# Shuffle adventure field back into deck
 	for field_card in adventure_field:
 		deck.append(field_card)
 	adventure_field = []
+	
+	# ← NEW: clear any carried over card back into the deck too
+	# If a carried_over_card was set from the previous adventure,
+	# _deal_adventure() would place it at position 0 of the new field
+	# making it look like a card never got reshuffled.
+	# Taking a Chance should reshuffle everything including this card.
+	if carried_over_card != null:
+		deck.append(carried_over_card)
+		carried_over_card = null
+	
 	_shuffle_deck()
 	_deal_adventure()
+	emit_signal("sfx_shuffle")
 	emit_signal("state_changed")
 	print("Chance used! Adventure reshuffled.")
 	return true
@@ -218,12 +262,14 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 		discard_pile.append(challenge)
 		equipped_volition = null
 		_remove_from_source(challenge, false)
+		emit_signal("sfx_challenge_resolved")
 	else:
 		# Deplete the challenge
 		print("Volition depletes challenge by ", vol_value)
 		challenge.value -= vol_value
 		discard_pile.append(equipped_volition)
 		equipped_volition = null
+		emit_signal("sfx_sword_hit")
 
 	emit_signal("state_changed")
 	return true
@@ -246,12 +292,14 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		discard_pile.append(challenge)
 		equipped_strength = null
 		_remove_from_source(challenge, false)
+		emit_signal("sfx_challenge_resolved")
 	elif str_value > challenge_value:
 		# Strength wins - challenge discarded, strength depleted
 		print("Challenge ENDURED, Strength depleted by ", challenge_value)
 		equipped_strength.value -= challenge_value
 		discard_pile.append(challenge)
 		_remove_from_source(challenge, false)
+		emit_signal("sfx_challenge_resolved")
 	else:
 		# Challenge wins - both discarded, Fool takes damage
 		var damage = challenge_value - str_value
@@ -262,6 +310,7 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		equipped_strength = null
 		_remove_from_source(challenge, false)
 		_check_vitality()
+		emit_signal("sfx_vitality_damage")
 
 	emit_signal("state_changed")
 	return true
@@ -273,6 +322,7 @@ func resolve_directly(challenge: Dictionary) -> bool:
 		return false
 
 	vitality -= challenge.value
+	emit_signal("sfx_vitality_damage")
 	print("Challenge resolved directly! Vitality cost: ", challenge.value)
 	discard_pile.append(challenge)
 	# _remove_from_source replaces the old adventure_field.erase() + _on_card_resolved()
@@ -289,6 +339,7 @@ func replenish_vitality(card: Dictionary, from_satchel: bool = false) -> bool:
 
 	var healed = min(card.value, MAX_VITALITY - vitality)  # can't exceed 25
 	vitality += healed
+	emit_signal("sfx_vitality_heal")
 	print("Vitality replenished by ", healed, ". Now at: ", vitality)
 	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
@@ -336,7 +387,14 @@ func _on_card_resolved():
 
 	# Need 3 of 4 cards resolved before dealing the next adventure
 	if cards_resolved_this_adventure >= 3:
-		_end_adventure()
+		_adventure_end_pending = true # flag that a deal is incoming
+		# Delay _end_adventure() slightly so challenge_resolved
+		# SFX has time to play before card_deal fires on the new deal.
+		# create_timer() is non-blocking - like setTimeout() in JS.
+		await get_tree().create_timer(0.4).timeout
+		if _adventure_end_pending:
+			_adventure_end_pending = false
+			_end_adventure()
 
 func _end_adventure():
 	print("Adventure complete!")
@@ -392,6 +450,7 @@ func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from
 	_remove_from_source(helper_card, helper_from_satchel)
 	discard_pile.append(helper_card)
 
+	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
 	print("Helper deployed! ", target_card.name, " value doubled to ", target_card.value)
 	return true

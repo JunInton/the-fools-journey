@@ -30,3 +30,7 @@ layout_mode = 2
 
 [node name="StartButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1986053568]
 layout_mode = 2
+
+[node name="RulesButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1571840923]
+layout_mode = 2
+text = "Rules"

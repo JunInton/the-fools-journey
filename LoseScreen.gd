@@ -30,6 +30,7 @@ const LOSE_TEXT = {
 }
 
 func _ready():
+	AudioManager.set_screen("lose")
 	var text = LOSE_TEXT[ThemeManager.current_theme]
 
 	# Show which challenge drained the last vitality
@@ -68,4 +69,5 @@ func _on_play_again_pressed():
 	# Return to main menu rather than restarting directly
 	# This lets the player trigger the Konami code theme switch
 	# before starting a new run, and is cleaner UX overall
+	AudioManager.play_menu_click()
 	get_tree().change_scene_to_file("res://MainMenu.tscn")

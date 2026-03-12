@@ -82,10 +82,11 @@ func update_display():
 
 	if role in [CardData.ROLE_CHALLENGE, CardData.ROLE_VITALITY,
 				CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION]:
-		var value_text = "Value: " + str(value)
 		if card_data.get("doubled", false):
-			value_text += " (boosted)"
-		card_value_label.text = value_text
+			# Highlight the doubled value with unicode sparkles
+			card_value_label.text = "✦ " + str(value) + " ✦"
+		else:
+			card_value_label.text = "Value: " + str(value)
 		card_value_label.visible = true
 
 	elif role == CardData.ROLE_WISDOM:
@@ -305,10 +306,28 @@ func _handle_double_click():
 				GameState.equip_volition(card_data, source_zone == "satchel")
 
 		CardData.ROLE_VITALITY:
-			if GameState.vitality >= GameState.MAX_VITALITY:
+			var heal_amount = card_data.get("value", 0)
+			var current_vitality = GameState.vitality
+			var max_vitality = GameState.MAX_VITALITY
+
+			if current_vitality >= max_vitality:
+				# Already at full - offer to discard instead
 				_confirm_action("Vitality is full. Discard this card?", func():
 					GameState.discard_card(card_data, source_zone == "satchel"))
+
+			elif current_vitality + heal_amount > max_vitality:
+				# ← NEW: healing would exceed maximum - show overheal warning
+				# so the player can make an informed decision rather than
+				# accidentally wasting part of the card's value
+				var actual_heal = max_vitality - current_vitality
+				var wasted = heal_amount - actual_heal
+				_confirm_action(
+					"Healing " + str(heal_amount) + " would overheal.\n" +
+					"You will only recover " + str(actual_heal) + " vitality (" +
+					str(wasted) + " wasted).\nProceed?",
+					func(): GameState.replenish_vitality(card_data, source_zone == "satchel"))
 			else:
+				# Clean heal with no waste - no confirmation needed
 				GameState.replenish_vitality(card_data, source_zone == "satchel")
 
 		CardData.ROLE_CHALLENGE:
@@ -387,7 +406,7 @@ func _show_challenge_dialog():
 
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
-	popup.popup_centered(Vector2(380, 200))
+	popup.popup_centered()
 
 # ------------------------------------
 # CONFIRMATION DIALOG
@@ -395,14 +414,40 @@ func _show_challenge_dialog():
 # but non-blocking. Takes a message and a callback to run on confirm.
 # ------------------------------------
 func _confirm_action(message: String, callback: Callable):
-	var dialog = ConfirmationDialog.new()
-	dialog.dialog_text = message
-	get_tree().root.add_child(dialog)
-	dialog.confirmed.connect(callback, CONNECT_ONE_SHOT)
-	dialog.visibility_changed.connect(func():
-		if not dialog.visible:
-			dialog.queue_free(), CONNECT_ONE_SHOT)
-	dialog.popup_centered()
+	# ← CHANGED: was ConfirmationDialog which uses OS-native styling
+	# Now uses PopupPanel like all other dialogs in the game,
+	# giving it the same transparent appearance
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+
+	var label = Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 260
+	vbox.add_child(label)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 8)
+
+	var confirm_btn = Button.new()
+	confirm_btn.text = "Confirm"
+	confirm_btn.pressed.connect(func():
+		popup.queue_free()
+		callback.call())
+	btn_row.add_child(confirm_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	btn_row.add_child(cancel_btn)
+
+	vbox.add_child(btn_row)
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()
 
 # ------------------------------------
 # HELPER TARGET FINDER
@@ -477,7 +522,10 @@ func _show_helper_dialog(targets: Array):
 
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
-	popup.popup_centered(Vector2(360, 220))
+	# ← CHANGED: was popup_centered(Vector2(360, 220)) hardcoded
+	# popup_centered() with no argument lets the popup size itself
+	# to fit its content - fewer targets = smaller box automatically
+	popup.popup_centered()
 
 # Preloaded here for the drag preview duplicate()
 # Must be at the bottom to avoid circular reference issues

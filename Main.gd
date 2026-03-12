@@ -38,6 +38,7 @@ const CardScene = preload("res://Card.tscn")
 @onready var strength_label = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/StrengthSection/StrengthLabel
 
 func _ready():
+	AudioManager.set_screen("game")
 	# Set static label text for all zone headers
 	adventure_label.text = "Adventure Field"
 	discard_label.text = "Discard Pile"
@@ -68,6 +69,7 @@ func _ready():
 	_setup_colors()
 	_setup_labels()
 	_setup_layout()  # ← NEW: separated layout sizing into its own function
+	_setup_audio_controls()
 
 	GameState.start_game()
 
@@ -253,7 +255,7 @@ func show_discard_viewer():
 	var vbox = VBoxContainer.new()
 
 	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(440, 320)
+	scroll.custom_minimum_size = Vector2(440, 200)
 	# Horizontal scroll keeps all cards in one row instead of wrapping
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -282,7 +284,7 @@ func show_discard_viewer():
 
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
-	popup.popup_centered(Vector2(440, 380))
+	popup.popup_centered()
 
 # Deck shows a card back image plus count label
 # Uses the Card scene for the back image so sizing matches all other cards
@@ -413,3 +415,135 @@ func _on_discard_section_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
 			show_discard_viewer()
+			
+# Settings and Rules
+func _setup_audio_controls():
+	# Invisible full-screen backdrop - sits behind the panel but above the game
+	# Clicking anywhere on it closes the panel, like clicking outside a dropdown
+	var backdrop = Button.new()
+	backdrop.flat = true  # no visible button styling
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.visible = false
+	backdrop.focus_mode = Control.FOCUS_NONE
+	backdrop.z_index = 1 # above game, below controls
+	add_child(backdrop)
+	
+	# Gear button that toggles the settings panel open/closed
+	var gear_btn = Button.new()
+	gear_btn.text = "⚙"
+	gear_btn.custom_minimum_size = Vector2(32, 32)
+	gear_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	gear_btn.position = Vector2(8, 8)
+	gear_btn.z_index = 2 # above backdrop
+	add_child(gear_btn)
+
+	# Settings panel — hidden by default, shown when gear is clicked
+	var panel = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	panel.position = Vector2(8, 48)
+	panel.visible = false
+	panel.z_index = 2 # above backdrop
+	add_child(panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	panel.add_child(vbox)
+
+	var music_btn = Button.new()
+	music_btn.text = "🔊 Music"
+	music_btn.toggle_mode = true
+	music_btn.button_pressed = AudioManager.music_enabled
+	music_btn.pressed.connect(func():
+		AudioManager.toggle_music()
+		music_btn.text = "🔊 Music" if AudioManager.music_enabled else "🔇 Music")
+	vbox.add_child(music_btn)
+
+	var sfx_btn = Button.new()
+	sfx_btn.text = "🔔 SFX"
+	sfx_btn.toggle_mode = true
+	sfx_btn.button_pressed = AudioManager.sfx_enabled
+	sfx_btn.pressed.connect(func():
+		AudioManager.toggle_sfx()
+		sfx_btn.text = "🔔 SFX" if AudioManager.sfx_enabled else "🔕 SFX")
+	vbox.add_child(sfx_btn)
+
+	var rules_btn = Button.new()
+	rules_btn.text = "📖 Rules"
+	rules_btn.pressed.connect(func():
+		AudioManager.play_menu_click()
+		# ← CHANGED: show rules as overlay instead of changing scenes
+		# This keeps the game scene alive so nothing resets
+		_show_rules_overlay())
+	vbox.add_child(rules_btn)
+
+	# Toggle both panel and backdrop together
+	gear_btn.pressed.connect(func():
+		var opening = not panel.visible
+		panel.visible = opening
+		backdrop.visible = opening)
+
+	backdrop.pressed.connect(func():
+		panel.visible = false
+		backdrop.visible = false)
+
+func _show_rules_overlay():
+	# Build a full-screen dimmed overlay so the game is visible but inactive
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.85)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+
+	var panel = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(700, 550)
+	# Center the panel on screen
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 100
+	panel.offset_right = -100
+	panel.offset_top = 60
+	panel.offset_bottom = -60
+	overlay.add_child(panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	panel.add_child(vbox)
+
+	# Add margin inside the panel
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+
+	var inner_vbox = VBoxContainer.new()
+	inner_vbox.add_theme_constant_override("separation", 12)
+	margin.add_child(inner_vbox)
+	panel.add_child(margin)
+
+	var title = Label.new()
+	title.text = "The Fool's Journey — Rules"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", ThemeManager.get_current()["label_color"])
+	inner_vbox.add_child(title)
+
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inner_vbox.add_child(scroll)
+
+	var rules_label = Label.new()
+	rules_label.text = _get_rules_text()
+	rules_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rules_label.custom_minimum_size.x = 580
+	scroll.add_child(rules_label)
+
+	var close_btn = Button.new()
+	close_btn.text = "Close"
+	close_btn.pressed.connect(func():
+		AudioManager.play_menu_click()
+		overlay.queue_free())
+	inner_vbox.add_child(close_btn)
+
+func _get_rules_text() -> String:
+	# Same rules text as RulesScreen which calls from ThemeManager
+	return ThemeManager.get_rules_text()
