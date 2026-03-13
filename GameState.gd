@@ -364,6 +364,13 @@ func _remove_from_source(card: Dictionary, from_satchel: bool):
 			_on_card_resolved()
 
 func _on_card_resolved():
+	# NEW: Don't deal a new adventure if the game is already lost
+	# resolve_directly() removes the card (triggering this function) before
+	# checking vitality, so we could end up dealing new cards and showing
+	# the lose screen at the same time. Bail out early if vitality is gone.
+	if vitality <= 0:
+		return
+	
 	cards_resolved_this_adventure += 1
 	print("Cards resolved this adventure: ", cards_resolved_this_adventure)
 

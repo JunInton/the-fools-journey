@@ -83,12 +83,16 @@ func play_music(screen: String):
 		music_player.stop()
 		return
 		
+	# CHANGED: declare stream once at the top to avoid the
+	# "declared below in parent block" warning from having two
+	# var stream declarations in the same function scope
+	var stream = load(path)
+	if stream == null:
+		return
+		
 	# NEW: Don't attempt playback until browser allows audio
 	if not _audio_unlocked:
-		# Still assign the stream so it's ready when unlock happens
-		var stream = load(path)
-		if stream != null:
-			music_player.stream = stream
+		music_player.stream = stream
 		return
 
 	# Don't restart the track if it's already playing the same file
@@ -96,10 +100,6 @@ func play_music(screen: String):
 	if music_player.playing and music_player.stream != null:
 		if music_player.stream.resource_path == path:
 			return
-
-	var stream = load(path)
-	if stream == null:
-		return
 
 	music_player.stream = stream
 	# REMOVED: music_player.stream.loop = ... line entirely
@@ -163,7 +163,14 @@ func _input(event: InputEvent):
 		event is InputEventKey or
 		event is InputEventScreenTouch):
 		_audio_unlocked = true
-		if _current_screen != "":
+		# CHANGED: bypass play_music() entirely on unlock
+		# play_music() has a guard that skips if the same stream is loaded
+		# but since we never called .play() before unlock, we need to
+		# force it here directly
+		if music_player.stream != null:
+			music_player.stream.loop = _current_screen not in ["win", "lose"]
+			music_player.play()
+		elif _current_screen != "":
 			play_music(_current_screen)
 	
 # Sound toggle
