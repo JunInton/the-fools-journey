@@ -224,6 +224,10 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 				if not card_data.get("doubled", false):
 					if GameState.equipped_wisdom.size() > 0:
 						return true
+						
+	# NEW: Vitality card dropped onto the Fool card to heal
+	if my_role == CardData.ROLE_FOOL and role == CardData.ROLE_VITALITY:
+		return true
 
 	# Equipped volition resolves a challenge
 	if source == "equipped_volition" and my_role == CardData.ROLE_CHALLENGE:
@@ -247,6 +251,26 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 func _drop_data(_at_position: Vector2, data: Variant):
 	var card = data.get("card", {})
 	var source = data.get("source_zone", "")
+	
+	# NEW: Vitality dropped onto Fool card — same logic as double-click heal
+	if card_data.get("role", "") == CardData.ROLE_FOOL and card.get("role", "") == CardData.ROLE_VITALITY:
+		var heal_amount = card.get("value", 0)
+		var current_vitality = GameState.vitality
+		var max_vitality = GameState.MAX_VITALITY
+		if current_vitality >= max_vitality:
+			_confirm_action("Vitality is full. Discard this card?", func():
+				GameState.discard_card(card, source == "satchel"))
+		elif current_vitality + heal_amount > max_vitality:
+			var actual_heal = max_vitality - current_vitality
+			var wasted = heal_amount - actual_heal
+			_confirm_action(
+				"Healing " + str(heal_amount) + " would overheal.\n" +
+				"You will only recover " + str(actual_heal) + " vitality (" +
+				str(wasted) + " wasted).\nProceed?",
+				func(): GameState.replenish_vitality(card, source == "satchel"))
+		else:
+			GameState.replenish_vitality(card, source == "satchel")
+		return
 
 	if card.get("role", "") == CardData.ROLE_HELPER:
 		GameState.deploy_helper(card, card_data, source == "satchel")

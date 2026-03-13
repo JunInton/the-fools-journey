@@ -102,8 +102,9 @@ func play_music(screen: String):
 		return
 
 	music_player.stream = stream
-	# Win and lose tracks play once - everything else loops
-	music_player.stream.loop = screen not in ["win", "lose"]
+	# REMOVED: music_player.stream.loop = ... line entirely
+	# Loop is now set in the Import tab per file instead of at runtime
+	# Setting it at runtime on a loaded resource is unreliable in web exports
 	music_player.play()
 
 # ------------------------------------
