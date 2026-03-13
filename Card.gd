@@ -84,7 +84,7 @@ func update_display():
 				CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION]:
 		if card_data.get("doubled", false):
 			# Highlight the doubled value with unicode sparkles
-			card_value_label.text = "✦ " + str(value) + " ✦"
+			card_value_label.text = "** " + str(value) + " **"
 		else:
 			card_value_label.text = "Value: " + str(value)
 		card_value_label.visible = true

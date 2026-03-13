@@ -179,14 +179,36 @@ func _drop_data(_at_position: Vector2, data):
 # In a larger project this would live in a shared utility autoload
 # ------------------------------------
 func _confirm_replace(message: String, callback: Callable):
-	var dialog = ConfirmationDialog.new()
-	dialog.dialog_text = message
-	dialog.title = "Confirm"
-	get_tree().root.add_child(dialog)
-	dialog.popup_centered()
-	dialog.confirmed.connect(callback, CONNECT_ONE_SHOT)
-	dialog.visibility_changed.connect(
-		func():
-			if not dialog.visible:
-				dialog.queue_free(), CONNECT_ONE_SHOT
-	)
+	# CHANGED: was ConfirmationDialog which uses OS-native styling
+	# Now matches the PopupPanel pattern used everywhere else in the game
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+
+	var label = Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 260
+	vbox.add_child(label)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 8)
+
+	var confirm_btn = Button.new()
+	confirm_btn.text = "Confirm"
+	confirm_btn.pressed.connect(func():
+		popup.queue_free()
+		callback.call())
+	btn_row.add_child(confirm_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	btn_row.add_child(cancel_btn)
+
+	vbox.add_child(btn_row)
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()

@@ -37,7 +37,7 @@ func _ready():
 
 	var music_btn = Button.new()
 	# 🔊 = music on, 🔇 = music off
-	music_btn.text = "Music"
+	music_btn.text = "Music ON"
 	music_btn.toggle_mode = true
 	music_btn.button_pressed = AudioManager.music_enabled
 	music_btn.custom_minimum_size = Vector2(32, 32)
@@ -48,7 +48,7 @@ func _ready():
 
 	var sfx_btn = Button.new()
 	# 🔔 = sfx on, 🔕 = sfx off
-	sfx_btn.text = "SFX"
+	sfx_btn.text = "SFX ON"
 	sfx_btn.toggle_mode = true
 	sfx_btn.button_pressed = AudioManager.sfx_enabled
 	sfx_btn.custom_minimum_size = Vector2(32, 32)

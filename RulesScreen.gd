@@ -33,7 +33,7 @@ func _ready():
 	rules_label.custom_minimum_size.x = 600
 
 	# Back button
-	back_button.text = "← Back"
+	back_button.text = "< Back"
 	back_button.pressed.connect(_on_back_pressed)
 
 func _on_back_pressed():

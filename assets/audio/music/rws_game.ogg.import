@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/rws_game.ogg-79ecfdb6a5f17ed3c7a2f1828abf89f0
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0.0
 bpm=0.0
 beat_count=0

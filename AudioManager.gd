@@ -82,6 +82,14 @@ func play_music(screen: String):
 	if path == "":
 		music_player.stop()
 		return
+		
+	# NEW: Don't attempt playback until browser allows audio
+	if not _audio_unlocked:
+		# Still assign the stream so it's ready when unlock happens
+		var stream = load(path)
+		if stream != null:
+			music_player.stream = stream
+		return
 
 	# Don't restart the track if it's already playing the same file
 	# This prevents music restarting when state_changed fires repeatedly
