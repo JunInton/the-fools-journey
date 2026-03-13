@@ -148,14 +148,12 @@ func cycle_theme():
 	switch_theme(THEME_CYCLE[next_index])
 	
 func get_music_path(screen: String) -> String:
-	# Returns the music path for the current theme and screen context
-	# Falls back to empty string if the file doesn't exist yet
+	# CHANGED: removed FileAccess.file_exists() checks - unreliable in web exports
+	# Just return the path directly and let the caller handle a failed load
 	var path = themes[current_theme]["music"].get(screen, "")
-	if path == "" or not FileAccess.file_exists(path):
-		# Try falling back to RWS if current theme has no music yet
+	if path == "":
+		# Fall back to RWS if current theme has no music for this screen
 		path = themes[THEME_RWS]["music"].get(screen, "")
-	if not FileAccess.file_exists(path):
-		return ""
 	return path
 
 func get_rules_text() -> String:
