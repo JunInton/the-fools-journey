@@ -42,6 +42,8 @@ var music_enabled: bool = true
 var sfx_enabled: bool = true
 
 func _ready():
+	print("AudioManager _ready() fired")
+	
 	# Create and configure the music player
 	# autoplay = false, we control when it starts
 	music_player = AudioStreamPlayer.new()
