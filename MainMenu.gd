@@ -37,24 +37,24 @@ func _ready():
 
 	var music_btn = Button.new()
 	# 🔊 = music on, 🔇 = music off
-	music_btn.text = "🔊"
+	music_btn.text = "Music"
 	music_btn.toggle_mode = true
 	music_btn.button_pressed = AudioManager.music_enabled
 	music_btn.custom_minimum_size = Vector2(32, 32)
 	music_btn.pressed.connect(func():
 		AudioManager.toggle_music()
-		music_btn.text = "🔊" if AudioManager.music_enabled else "🔇")
+		music_btn.text = "Music ON" if AudioManager.music_enabled else "Music OFF")
 	audio_controls.add_child(music_btn)
 
 	var sfx_btn = Button.new()
 	# 🔔 = sfx on, 🔕 = sfx off
-	sfx_btn.text = "🔔"
+	sfx_btn.text = "SFX"
 	sfx_btn.toggle_mode = true
 	sfx_btn.button_pressed = AudioManager.sfx_enabled
 	sfx_btn.custom_minimum_size = Vector2(32, 32)
 	sfx_btn.pressed.connect(func():
 		AudioManager.toggle_sfx()
-		sfx_btn.text = "🔔" if AudioManager.sfx_enabled else "🔕")
+		sfx_btn.text = "SFX ON" if AudioManager.sfx_enabled else "SFX OFF")
 	audio_controls.add_child(sfx_btn)
 	
 	rules_button.text = "Rules"

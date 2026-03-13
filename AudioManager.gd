@@ -109,7 +109,7 @@ func play_sfx(sfx_name: String):
 		return
 		
 	var path = SFX_PATHS.get(sfx_name, "")
-	if path == "" or not FileAccess.file_exists(path):
+	if path == "":
 		return
 
 	var stream = load(path)
@@ -141,10 +141,21 @@ func _on_theme_changed(_new_theme: String):
 # Tracks which screen is currently active so theme changes
 # can request the right music track
 var _current_screen: String = ""
+var _audio_unlocked: bool = false
 
 func set_screen(screen: String):
 	_current_screen = screen
 	play_music(screen)
+
+# ← ADD THIS right below set_screen()
+func _input(event: InputEvent):
+	if not _audio_unlocked and (
+		event is InputEventMouseButton or
+		event is InputEventKey or
+		event is InputEventScreenTouch):
+		_audio_unlocked = true
+		if _current_screen != "":
+			play_music(_current_screen)
 	
 # Sound toggle
 func toggle_music():

@@ -430,7 +430,7 @@ func _setup_audio_controls():
 	
 	# Gear button that toggles the settings panel open/closed
 	var gear_btn = Button.new()
-	gear_btn.text = "⚙"
+	gear_btn.text = "Options"
 	gear_btn.custom_minimum_size = Vector2(32, 32)
 	gear_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	gear_btn.position = Vector2(8, 8)
@@ -450,25 +450,25 @@ func _setup_audio_controls():
 	panel.add_child(vbox)
 
 	var music_btn = Button.new()
-	music_btn.text = "🔊 Music"
+	music_btn.text = "Music"
 	music_btn.toggle_mode = true
 	music_btn.button_pressed = AudioManager.music_enabled
 	music_btn.pressed.connect(func():
 		AudioManager.toggle_music()
-		music_btn.text = "🔊 Music" if AudioManager.music_enabled else "🔇 Music")
+		music_btn.text = "Music ON" if AudioManager.music_enabled else "Music OFF")
 	vbox.add_child(music_btn)
 
 	var sfx_btn = Button.new()
-	sfx_btn.text = "🔔 SFX"
+	sfx_btn.text = "SFX"
 	sfx_btn.toggle_mode = true
 	sfx_btn.button_pressed = AudioManager.sfx_enabled
 	sfx_btn.pressed.connect(func():
 		AudioManager.toggle_sfx()
-		sfx_btn.text = "🔔 SFX" if AudioManager.sfx_enabled else "🔕 SFX")
+		sfx_btn.text = "SFX ON" if AudioManager.sfx_enabled else "SFX OFF")
 	vbox.add_child(sfx_btn)
 
 	var rules_btn = Button.new()
-	rules_btn.text = "📖 Rules"
+	rules_btn.text = "Rules"
 	rules_btn.pressed.connect(func():
 		AudioManager.play_menu_click()
 		# ← CHANGED: show rules as overlay instead of changing scenes

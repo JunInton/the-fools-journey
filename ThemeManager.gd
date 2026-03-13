@@ -166,9 +166,9 @@ The Fool embarks on a journey, acquiring wisdom and overcoming challenges. Begin
 OBJECTIVE
 Overcome every Major Arcana challenge and reach the end of the deck with at least 1 Vitality remaining.
 
-──────────────────────────────
+------------------------------
 THE CARDS
-──────────────────────────────
+------------------------------
 
 Major Arcana — Challenges
 The 21 numbered Major Arcana are Challenges. Each has a value equal to its number. Challenges cannot be simply discarded — they must be overcome.
@@ -191,9 +191,9 @@ Discard from the Adventure Field or Satchel to reshuffle all current Adventure F
 Face Cards — Helpers
 Spend 1 Wisdom card to place a face card under a same-suit card in the Adventure Field, Satchel, or equipped Strength/Volition slot. Doubles the target card's current value. Each card can only have one Helper at a time. Helpers attached to Healing cards in the Satchel do not count toward the 3-card Satchel limit.
 
-──────────────────────────────
+------------------------------
 ACTIONS
-──────────────────────────────
+------------------------------
 Each turn you may take any number of actions in any order.
 
   Discard        Send any non-Challenge card to the discard pile.
@@ -213,9 +213,9 @@ Each turn you may take any number of actions in any order.
 
   Overcome       Use Strength, Volition, or raw Vitality against a Challenge.
 
-──────────────────────────────
+------------------------------
 OVERCOMING CHALLENGES
-──────────────────────────────
+------------------------------
 
 Using Strength
   Equal or Greater:  Both the Strength card and Challenge are discarded.
@@ -233,14 +233,14 @@ Using Vitality
   Subtract the Challenge's value directly from the Fool's Vitality.
   The Challenge is then discarded.
 
-──────────────────────────────
+------------------------------
 ADVENTURE ROUNDS
-──────────────────────────────
+------------------------------
 When only 1 card remains in the Adventure Field, deal 3 more cards to begin a new Adventure round.
 
-──────────────────────────────
+------------------------------
 WINNING AND LOSING
-──────────────────────────────
+------------------------------
   Loss  Vitality reaches 0 or below.
   Win   All Challenges overcome and the deck is exhausted.
   Tie   If Vitality hits 0 on the very final Challenge, consider the

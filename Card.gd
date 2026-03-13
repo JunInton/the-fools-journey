@@ -118,10 +118,11 @@ func update_display():
 func _load_card_image():
 	var path = CardData.get_card_image_path(card_data)
 
-	if path == "" or not FileAccess.file_exists(path):
+	if path == "":
 		card_image.visible = false
 		return
-
+	# CHANGED: removed FileAccess.file_exists() check - unreliable in web exports
+	# Just attempt the load directly and check for null instead
 	var texture = load(path)
 	if texture != null:
 		card_image.texture = texture
@@ -164,12 +165,11 @@ func show_card_back():
 	card_name_label.visible = false
 	card_value_label.visible = false
 
-	var back_path = "res://assets/cards/rws/card_back.jpg"
-	if FileAccess.file_exists(back_path):
-		var texture = load(back_path)
-		if texture != null:
-			card_image.texture = texture
-			card_image.visible = true
+	# CHANGED: load directly without FileAccess check
+	var texture = load("res://assets/cards/rws/card_back.jpg")
+	if texture != null:
+		card_image.texture = texture
+		card_image.visible = true
 
 	var stylebox = StyleBoxFlat.new()
 	stylebox.bg_color = Color(0.3, 0.3, 0.4)
