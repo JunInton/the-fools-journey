@@ -79,33 +79,25 @@ func _ready():
 # ------------------------------------
 func play_music(screen: String):
 	var path = ThemeManager.get_music_path(screen)
+	print("play_music called. Screen: ", screen, " Path: ", path, " Unlocked: ", _audio_unlocked)
 	if path == "":
 		music_player.stop()
 		return
-		
-	# CHANGED: declare stream once at the top to avoid the
-	# "declared below in parent block" warning from having two
-	# var stream declarations in the same function scope
 	var stream = load(path)
+	print("Stream loaded: ", stream)
 	if stream == null:
 		return
-		
-	# NEW: Don't attempt playback until browser allows audio
 	if not _audio_unlocked:
 		music_player.stream = stream
+		print("Audio not unlocked yet, stream assigned but not played")
 		return
-
-	# Don't restart the track if it's already playing the same file
-	# This prevents music restarting when state_changed fires repeatedly
 	if music_player.playing and music_player.stream != null:
 		if music_player.stream.resource_path == path:
+			print("Same stream already playing, skipping")
 			return
-
 	music_player.stream = stream
-	# REMOVED: music_player.stream.loop = ... line entirely
-	# Loop is now set in the Import tab per file instead of at runtime
-	# Setting it at runtime on a loaded resource is unreliable in web exports
 	music_player.play()
+	print("play() called. Now playing: ", music_player.playing)
 
 # ------------------------------------
 # SFX PLAYBACK
@@ -156,21 +148,19 @@ func set_screen(screen: String):
 	_current_screen = screen
 	play_music(screen)
 
-# ← ADD THIS right below set_screen()
 func _input(event: InputEvent):
 	if not _audio_unlocked and (
 		event is InputEventMouseButton or
 		event is InputEventKey or
 		event is InputEventScreenTouch):
 		_audio_unlocked = true
-		# CHANGED: bypass play_music() entirely on unlock
-		# play_music() has a guard that skips if the same stream is loaded
-		# but since we never called .play() before unlock, we need to
-		# force it here directly
+		print("Audio unlocked! Stream: ", music_player.stream, " Screen: ", _current_screen)
 		if music_player.stream != null:
 			music_player.stream.loop = _current_screen not in ["win", "lose"]
 			music_player.play()
+			print("play() forced. Now playing: ", music_player.playing)
 		elif _current_screen != "":
+			print("No stream loaded, calling play_music...")
 			play_music(_current_screen)
 	
 # Sound toggle
