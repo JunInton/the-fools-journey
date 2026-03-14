@@ -2,6 +2,10 @@ extends Control
 
 const CardScene = preload("res://Card.tscn")
 
+# Animation layer — cards fly through this when moving between zones
+# Sits above all zone panels so animating cards render on top of everything
+var anim_layer: Control
+
 # ------------------------------------
 # @onready vars grab references to child nodes
 # Like useRef in React - $ is shorthand for get_node()
@@ -39,6 +43,15 @@ const CardScene = preload("res://Card.tscn")
 
 func _ready():
 	AudioManager.set_screen("game")
+	
+	# NEW: create animation layer first so it exists before anything else
+	anim_layer = Control.new()
+	anim_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anim_layer.z_index = 10
+	add_child(anim_layer)
+	print("Animation layer created. z_index: ", anim_layer.z_index)
+	
 	# Set static label text for all zone headers
 	adventure_label.text = "Adventure Field"
 	discard_label.text = "Discard Pile"
