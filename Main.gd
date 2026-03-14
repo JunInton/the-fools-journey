@@ -6,6 +6,12 @@ const CardScene = preload("res://Card.tscn")
 # Sits above all zone panels so animating cards render on top of everything
 var anim_layer: Control
 
+# NEW: maps card _id to its Card node and current zone
+# Like a React key → component map — lets us track cards persistently
+# instead of destroying and recreating nodes on every state change
+var _card_nodes: Dictionary = {}   # int -> Card node
+var _card_zones: Dictionary = {}   # int -> String zone name
+
 # ------------------------------------
 # @onready vars grab references to child nodes
 # Like useRef in React - $ is shorthand for get_node()
@@ -85,6 +91,7 @@ func _ready():
 	_setup_labels()
 	_setup_layout()  # ← NEW: separated layout sizing into its own function
 	_setup_audio_controls()
+	_clear_registry()
 
 	GameState.start_game()
 
@@ -207,15 +214,132 @@ func _on_theme_changed(_new_theme: String):
 # Called every time GameState emits state_changed.
 # ------------------------------------
 func _render_all():
-	_render_zone(adventure_container, GameState.adventure_field, "adventure")
-	_render_zone(satchel_container, GameState.satchel, "satchel")
-	_render_zone(wisdom_container, GameState.equipped_wisdom, "equipped_wisdom")
-	_render_equipped_single(volition_container, GameState.equipped_volition, "equipped_volition")
-	_render_equipped_single(strength_container, GameState.equipped_strength, "equipped_strength")
+	# CHANGED: _sync_ functions replace _render_ for persistent zones
+	# _render_ functions still used for discard, deck, fool which
+	# have special rendering logic not yet converted
+	_sync_zone(adventure_container, GameState.adventure_field, "adventure")
+	_sync_zone(satchel_container, GameState.satchel, "satchel")
+	_sync_zone(wisdom_container, GameState.equipped_wisdom, "equipped_wisdom")
+	_sync_single(volition_container, GameState.equipped_volition, "equipped_volition")
+	_sync_single(strength_container, GameState.equipped_strength, "equipped_strength")
 	_render_discard()
 	_render_deck()
 	_render_fool_stats()
 	_render_fool_card()
+	#_debug_print_node_ids() # TEMPORARY
+	
+# TEMPORARY
+#func _debug_print_node_ids():
+	#print("--- Node ID snapshot ---")
+	#for id in _card_nodes:
+		#if is_instance_valid(_card_nodes[id]):
+			#var node = _card_nodes[id]
+			#print("  card_id:", id, 
+				#"  name:", node.card_data.get("name", "?"),
+				#"  zone:", _card_zones.get(id, "?"),
+				#"  node_id:", node.get_instance_id())
+	#print("------------------------")
+	
+# ------------------------------------
+# CARD REGISTRY MANAGEMENT
+# Replaces the destroy/recreate render pattern with persistent nodes.
+# Cards keep their node identity across state changes so they can be
+# animated moving between zones rather than just appearing and disappearing.
+# ------------------------------------
+
+func _clear_registry():
+	# Called on game start to ensure registry is empty
+	# Also frees any lingering card nodes from a previous game
+	for id in _card_nodes:
+		if is_instance_valid(_card_nodes[id]):
+			_card_nodes[id].queue_free()
+	_card_nodes.clear()
+	_card_zones.clear()
+
+func _sync_zone(container: Node, cards: Array, zone_name: String):
+	# Build set of IDs that should be in this zone
+	var expected_ids: Dictionary = {}
+	for card in cards:
+		if card.has("_id"):
+			expected_ids[card["_id"]] = card
+
+	# Remove nodes for cards that left this zone
+	# Only remove if the card isn't tracked elsewhere in the registry
+	# (it may have already moved to another zone)
+	for child in container.get_children():
+		if child.has_method("set_card") and child.card_data.has("_id"):
+			var id = child.card_data["_id"]
+			if not expected_ids.has(id):
+				# Card left this zone — remove from container
+				# Don't queue_free here since _sync on the destination
+				# zone will handle adding it there
+				if _card_zones.get(id, "") == zone_name:
+					# Only free if this zone still thinks it owns the card
+					_card_nodes.erase(id)
+					_card_zones.erase(id)
+					child.queue_free()
+
+	# Add nodes for cards newly arrived in this zone
+	for card in cards:
+		if not card.has("_id"):
+			continue
+		var id = card["_id"]
+		if not _card_nodes.has(id) or not is_instance_valid(_card_nodes[id]):
+			# Card has no node yet — create one
+			var instance = CardScene.instantiate()
+			instance.source_zone = zone_name
+			container.add_child(instance)
+			instance.set_card(card)
+			_card_nodes[id] = instance
+			_card_zones[id] = zone_name
+		elif _card_zones.get(id, "") != zone_name:
+			# Card exists but is in wrong zone — move it
+			var existing = _card_nodes[id]
+			existing.source_zone = zone_name
+			existing.get_parent().remove_child(existing)
+			container.add_child(existing)
+			_card_zones[id] = zone_name
+		else:
+			# Card is already in the right zone — just update its display
+			# in case its data changed (e.g. value reduced by volition)
+			_card_nodes[id].update_display()
+
+func _sync_single(container: Node, card, zone_name: String):
+	# Handles single-card slots like strength and volition
+	if card == null:
+		# Slot is empty — remove any existing node
+		for child in container.get_children():
+			if child.has_method("set_card"):
+				var id = child.card_data.get("_id", -999)
+				_card_nodes.erase(id)
+				_card_zones.erase(id)
+				child.queue_free()
+		return
+
+	var id = card.get("_id", -999)
+	if not _card_nodes.has(id) or not is_instance_valid(_card_nodes[id]):
+		# No node yet — clear slot and create new one
+		for child in container.get_children():
+			if child.has_method("set_card"):
+				var old_id = child.card_data.get("_id", -999)
+				_card_nodes.erase(old_id)
+				_card_zones.erase(old_id)
+				child.queue_free()
+		var instance = CardScene.instantiate()
+		instance.source_zone = zone_name
+		container.add_child(instance)
+		instance.set_card(card)
+		_card_nodes[id] = instance
+		_card_zones[id] = zone_name
+	elif _card_zones.get(id, "") != zone_name:
+		# Card exists but is in wrong zone — move it
+		var existing = _card_nodes[id]
+		existing.source_zone = zone_name
+		existing.get_parent().remove_child(existing)
+		container.add_child(existing)
+		_card_zones[id] = zone_name
+	else:
+		_card_nodes[id].update_display()
 
 # Renders an array of cards into a container
 # Like mapping over an array in JSX: cards.map(card => <Card data={card} />)
