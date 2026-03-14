@@ -10,6 +10,9 @@ signal state_changed  # fires whenever anything updates
 signal game_over(reason: String)
 signal game_won
 
+#@warning_ignore("unused_signal")
+signal discard_viewer_requested
+
 # Specific audio signals so AudioManager knows exactly what happened
 # One signal per meaningful audio moment - keeps sounds from stacking up
 signal sfx_card_deal

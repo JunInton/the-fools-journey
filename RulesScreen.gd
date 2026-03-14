@@ -25,12 +25,21 @@ func _ready():
 	title_label.text = "How to Play"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 32)
-	title_label.add_theme_color_override("font_color", theme_data["label_color"])
+	title_label.add_theme_color_override("font_color", theme_data["rules_text_color"])
 
-	# Rules text
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 40)
+	margin.add_theme_constant_override("margin_right", 40)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_container.add_child(margin)
+
+	var rules_label = Label.new()
 	rules_label.text = _get_rules_text()
 	rules_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rules_label.custom_minimum_size.x = 600
+	rules_label.custom_minimum_size.x = 560
+	rules_label.add_theme_color_override("font_color", 
+		ThemeManager.get_current()["rules_text_color"])
+	margin.add_child(rules_label)
 
 	# Back button
 	back_button.text = "Back"

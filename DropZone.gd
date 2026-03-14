@@ -132,7 +132,12 @@ func _drop_data(_at_position: Vector2, data):
 			elif source == "equipped_volition":
 				GameState.unequip_volition_to_discard()
 			else:
-				GameState.discard_card(card, from_satchel)
+				# NEW: Aces dropped on discard zone show action menu
+				# instead of silently discarding — matches double-click behavior
+				if card.get("role", "") == CardData.ROLE_CHANCE:
+					_show_ace_drop_menu(card, from_satchel)
+				else:
+					GameState.discard_card(card, from_satchel)
 
 		ZoneType.SATCHEL:
 			GameState.store_in_satchel(card)
@@ -170,6 +175,39 @@ func _drop_data(_at_position: Vector2, data):
 				)
 			else:
 				GameState.replenish_vitality(card, from_satchel)
+
+func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title = Label.new()
+	title.text = card.get("name", "Ace")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var chance_btn = Button.new()
+	chance_btn.text = "Take a Chance — reshuffle Adventure"
+	chance_btn.pressed.connect(func():
+		popup.queue_free()
+		GameState.use_chance(card, from_satchel))
+	vbox.add_child(chance_btn)
+
+	var discard_btn = Button.new()
+	discard_btn.text = "Discard"
+	discard_btn.pressed.connect(func():
+		popup.queue_free()
+		GameState.discard_card(card, from_satchel))
+	vbox.add_child(discard_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(cancel_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()
 
 # ------------------------------------
 # CONFIRMATION DIALOG

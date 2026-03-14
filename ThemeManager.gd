@@ -14,7 +14,7 @@ const THEME_PERSONA3 = "persona3"
 const THEME_PERSONA5 = "persona5"
 
 # Cycle order for the secret code
-const THEME_CYCLE = [THEME_RWS, THEME_PERSONA3, THEME_PERSONA5]
+const THEME_CYCLE = [THEME_RWS, THEME_PERSONA3]
 
 # Currently active theme - starts as RWS
 var current_theme: String = THEME_RWS
@@ -28,8 +28,9 @@ var rules_return_scene: String = "res://MainMenu.tscn"
 var themes = {
 	THEME_RWS: {
 		"name": "The Fool's Journey",
-		"subtitle": "A Tarot Solitaire Game\nby Desmond Meraz",
-		"background": Color(0.08, 0.05, 0.15),
+		"subtitle": "A Tarot Solitaire Game",
+		"background": Color(0, 0, 0),
+		"rules_text_color": Color(1, 1, 1),
 		"suit_colors": {
 			"cups":   Color(0.2, 0.4, 0.8),   # blue
 			"batons": Color(0.2, 0.6, 0.2),   # green
@@ -53,29 +54,34 @@ var themes = {
 			"game": "res://assets/audio/music/rws_game.ogg",
 			"win":  "res://assets/audio/music/rws_win.ogg",
 			"lose": "res://assets/audio/music/rws_lose.ogg",
+		},
+		"backgrounds": {
+			"menu": "res://assets/backgrounds/rws_menu.jpg",
+			"win": "res://assets/backgrounds/rws_win.jpg"
 		}
 	},
 	# Persona 3 palette: dark navy background, cyan/light blues,
 	# gold accents. Based on https://www.color-hex.com/color-palette/95744
 	THEME_PERSONA3: {
-		"name": "Memento Mori",
+		"name": "The Fool's Journey",
 		"subtitle": "\"Only those who have the power\nto face the shadows may proceed.\"",
-		"background": Color8(0, 23, 54),        # #001736 - deep navy
+		"background": Color8(153, 153, 153),        # #001736 - deep navy
+		"rules_text_color": Color(0, 0, 0),
 		"suit_colors": {
 			# Each suit gets a distinct color drawn from the P3 palette
 			"cups":   Color8(0, 187, 250),      # #00bbfa - bright cyan
-			"batons": Color8(255, 197, 74),      # #ffc54a - gold
-			"swords": Color8(121, 215, 253),     # #79d7fd - light blue
+			"batons": Color(0.2, 0.6, 0.2),    # green
+			"swords": Color(0.7, 0.2, 0.2),     # 121, 215, 253 #79d7fd - light blue
 			"coins":  Color8(255, 197, 74),      # #ffc54a - gold
-			"major":  Color8(0, 24, 62),         # #00183e - darkest navy, lightened for visibility
+			"major":  Color8(255, 255, 255),         # #00183e - darkest navy, lightened for visibility
 		},
 		"zone_colors": {
 			"discard":   Color8(0, 24, 62),      # #00183e
 			"adventure": Color8(0, 30, 75),      # slightly lighter navy
 			"deck":      Color8(0, 24, 62),      # #00183e
-			"wisdom":    Color8(40, 60, 20),     # muted gold-green
+			"wisdom":    Color8(0, 23, 54),        # black
 			"fool":      Color8(0, 50, 90),      # mid navy
-			"satchel":   Color8(10, 40, 80),     # dark blue
+			"satchel":   Color8(0, 23, 54),     # dark blue
 		},
 		"label_color": Color8(255, 197, 74),     # #ffc54a gold
 		"music_path": "",
@@ -85,26 +91,30 @@ var themes = {
 			"game": "res://assets/audio/music/persona3_game.ogg",
 			"win":  "res://assets/audio/music/persona3_win.ogg",
 			"lose": "res://assets/audio/music/persona3_lose.ogg",
+		},
+		"backgrounds": {
+			"menu": "",
+			"win": "res://assets/backgrounds/persona3_win.jpg"
 		}
 	},
 	# Persona 5 palette: near-black background, high contrast reds,
 	# bright yellow accents. Based on https://www.color-hex.com/color-palette/1019867
 	THEME_PERSONA5: {
-		"name": "Thou Art a Rebel",
-		"subtitle": "\"Welcome to the Metaverse.\"\nSteal the hearts of the corrupt.",
-		"background": Color8(13, 13, 13),        # #0d0d0d - near black
+		"name": "The Fool's Journey",
+		"subtitle": "\"this theme is incomplete,\"\nplease switch to another.",
+		"background": Color8(255, 255, 255),        # #0d0d0d - near black
 		"suit_colors": {
-			"cups":   Color8(115, 36, 36),       # #732424 - dark red
-			"batons": Color8(217, 35, 35),       # #d92323 - bright red
-			"swords": Color8(242, 232, 82),      # #f2e852 - bright yellow
-			"coins":  Color8(140, 103, 35),      # #8c6723 - dark gold
-			"major":  Color8(217, 35, 35),       # #d92323 - signature P5 red
+			"cups":   Color(0.2, 0.4, 0.8),       # #732424 - dark red
+			"batons": Color(0.2, 0.6, 0.2),       # #d92323 - bright red
+			"swords": Color8(217, 35, 35),      # #f2e852 - bright yellow
+			"coins":  Color8(242, 232, 82),      # #8c6723 - dark gold
+			"major":  Color8(255, 255, 255),       # #d92323 - signature P5 red
 		},
 		"zone_colors": {
 			"discard":   Color8(30, 10, 10),     # very dark red-black
 			"adventure": Color8(20, 5, 5),       # near black with red tint
 			"deck":      Color8(30, 10, 10),     # very dark red-black
-			"wisdom":    Color8(40, 30, 5),      # dark gold-black
+			"wisdom":    Color8(140, 103, 35),      # dark gold-black
 			"fool":      Color8(40, 5, 5),       # deep red-black
 			"satchel":   Color8(15, 15, 15),     # slightly lighter black
 		},
@@ -116,6 +126,10 @@ var themes = {
 			"game": "res://assets/audio/music/persona5_game.ogg",
 			"win":  "res://assets/audio/music/persona5_win.ogg",
 			"lose": "res://assets/audio/music/persona5_lose.ogg",
+		},
+		"backgrounds": {
+			"menu": "",
+			"win": ""
 		}
 	}
 }
@@ -155,91 +169,146 @@ func get_music_path(screen: String) -> String:
 		# Fall back to RWS if current theme has no music for this screen
 		path = themes[THEME_RWS]["music"].get(screen, "")
 	return path
+	
+func get_background_path(screen: String) -> String:
+	return themes[current_theme]["backgrounds"].get(screen, "")
+	
+# Call this from any screen's _ready() to apply the appropriate background.
+# Handles three cases in priority order:
+# 1. Image file exists at the path → show image
+# 2. No image but gradient colors provided → draw gradient
+# 3. Neither → fall back to flat color
+func apply_screen_background(node: Control, screen: String,
+		gradient_top: Color = Color.BLACK,
+		gradient_bottom: Color = Color.BLACK,
+		fallback_color: Color = Color.BLACK):
+			
+	var w = ProjectSettings.get_setting("display/window/size/viewport_width")
+	var h = ProjectSettings.get_setting("display/window/size/viewport_height")
+
+	var path = get_background_path(screen)
+
+	# Case 1 — image
+	if path != "":
+		print("Background path found: ", path)
+		var texture = load(path)
+		print("Texture loaded: ", texture)
+		if texture != null:
+			var bg = TextureRect.new()
+			bg.texture = texture
+			bg.stretch_mode = TextureRect.STRETCH_SCALE
+			bg.z_index = -1
+			bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			bg.position = Vector2.ZERO
+			bg.size = Vector2(w, h)
+			node.add_child(bg)
+			node.move_child(bg, 0)
+			return
+
+	# Case 2 — gradient
+	if gradient_top != gradient_bottom:
+		var g = Gradient.new()
+		g.set_color(0, gradient_top)
+		g.set_color(1, gradient_bottom)
+		var gradient = GradientTexture2D.new()
+		gradient.gradient = g
+		gradient.fill_from = Vector2(0.5, 0)
+		gradient.fill_to = Vector2(0.5, 1)
+
+		var grad_rect = TextureRect.new()
+		grad_rect.texture = gradient
+		grad_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		grad_rect.z_index = -1
+		grad_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		grad_rect.position = Vector2.ZERO
+		grad_rect.size = Vector2(w, h)
+		node.add_child(grad_rect)
+		node.move_child(grad_rect, 0)
+		return
+
+	# Case 3 — flat color fallback
+	# CHANGED: was add_theme_stylebox_override which only works on PanelContainer
+	# ColorRect works on any Control node
+	var color_rect = ColorRect.new()
+	color_rect.color = fallback_color
+	color_rect.z_index = -1
+	color_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	color_rect.position = Vector2.ZERO
+	color_rect.size = Vector2(w, h)
+	node.add_child(color_rect)
+	node.move_child(color_rect, 0)
 
 func get_rules_text() -> String:
 	return \
 """OVERVIEW
-The Fool embarks on a journey, acquiring wisdom and overcoming challenges. Begin with 25 Vitality. The deck contains 77 cards (the full tarot minus The Fool). Deal 4 cards to the Adventure Field to begin.
+The Fool embarks on a journey, acquiring wisdom and overcoming challenges. You begin with 25 Vitality. The deck contains 77 cards — the full tarot minus The Fool himself. Four cards are dealt to the Adventure Field to begin each round.
 
 OBJECTIVE
-Overcome every Major Arcana challenge and reach the end of the deck with at least 1 Vitality remaining.
+Overcome every Major Arcana challenge and exhaust the deck with at least 1 Vitality remaining.
+
+------------------------------
+CONTROLS
+------------------------------
+Double-click any card to open its action menu. From there you can equip it, store it in the Satchel, heal with it, deploy it as a Helper, or discard it.
+
+Drag and drop cards as an alternative to the action menu:
+  - Drag a card to the Discard Pile zone to discard it.
+  - Drag a card to the Wisdom, Strength, or Volition slots to equip it.
+  - Drag a card to the Satchel zone to store it.
+  - Drag a Vitality card onto the Fool card to heal.
+  - Drag an equipped Strength or Volition card onto a Challenge to resolve it.
+  - Drag the Fool card onto a Challenge to resolve it directly with Vitality.
+  - Drag a Helper card onto a same-suit card to deploy it (costs 1 Wisdom).
+
+Double-click the Discard Pile zone to view all discarded cards.
 
 ------------------------------
 THE CARDS
 ------------------------------
 
 Major Arcana — Challenges
-The 21 numbered Major Arcana are Challenges. Each has a value equal to its number. Challenges cannot be simply discarded — they must be overcome.
+The 21 numbered Major Arcana are Challenges. Each card's number is its value. Challenges cannot be discarded — they must be overcome using Strength, Volition, Vitality, or a combination of these.
 
 Pentacles — Wisdom
-Equip up to 3 Pentacles cards (including face cards). Spend one Wisdom card to deploy a Helper onto a same-suit card.
+Equip up to 3 Pentacles cards (including face cards) to the Wisdom slot. Each equipped Wisdom card can be spent to deploy one Helper card.
 
 Wands — Strength
-Equip up to 1 Wands pip card (face cards cannot be equipped as Strength). Reusable — the Strength card stays equipped unless the challenge value exceeds your Strength, in which case both are discarded and you take the difference as damage.
+Equip one Wands pip card (not face cards) to the Strength slot. Strength is reusable — it stays equipped as long as its value exceeds the Challenge it faces. If it does not, both cards are discarded and the Fool takes the difference as damage.
 
 Swords — Volition
-Equip up to 1 Swords pip card (face cards cannot be equipped as Volition). Single use — always discarded after being used to overcome a Challenge.
+Equip one Swords pip card (not face cards) to the Volition slot. Volition is single-use — it is always discarded after overcoming a Challenge.
 
 Cups — Vitality
-Discard to restore Vitality equal to the card's value, up to a maximum of 25. The Fool can never exceed 25 Vitality.
+Double-click or drag to the Fool card to heal Vitality equal to the card's value, up to a maximum of 25.
 
 Aces — Chance
-Discard from the Adventure Field or Satchel to reshuffle all current Adventure Field cards back into the deck and deal 4 new cards.
+Double-click or drag to discard an Ace and reshuffle all Adventure Field cards back into the deck, then deal 4 new cards.
 
 Face Cards — Helpers
-Spend 1 Wisdom card to place a face card under a same-suit card in the Adventure Field, Satchel, or equipped Strength/Volition slot. Doubles the target card's current value. Each card can only have one Helper at a time. Helpers attached to Healing cards in the Satchel do not count toward the 3-card Satchel limit.
-
-------------------------------
-ACTIONS
-------------------------------
-Each turn you may take any number of actions in any order.
-
-  Discard        Send any non-Challenge card to the discard pile.
-                 Any Helper attached to it is also discarded.
-
-  Store          Place a Minor Arcana card in the Satchel (max 3 cards).
-
-  Equip          Place a Wisdom, Strength, or Volition card in its slot.
-                 Only 1 Strength and 1 Volition can be equipped at a time.
-                 Up to 3 Wisdom cards can be equipped at a time.
-
-  Deploy Helper  Spend 1 Wisdom card to double a same-suit card's value.
-
-  Heal           Discard a Cups card to restore Vitality.
-
-  Take a Chance  Discard an Ace to reshuffle the Adventure Field.
-
-  Overcome       Use Strength, Volition, or raw Vitality against a Challenge.
+Spend 1 Wisdom card to double the current value of a same-suit card in the Adventure Field, Satchel, or an equipped slot. Each card can only have one Helper at a time. Helpers deployed on cards in the Satchel do not count toward the 3-card Satchel limit.
 
 ------------------------------
 OVERCOMING CHALLENGES
 ------------------------------
 
-Using Strength
-  Equal or Greater:  Both the Strength card and Challenge are discarded.
-  Less:              Both cards are discarded. The Fool loses Vitality
-                     equal to the difference between the two values.
+Using Strength (drag equipped Strength onto a Challenge, or use the Challenge's action menu)
+  Strength >= Challenge:  Challenge is discarded. Strength's value is reduced by the Challenge's value and stays equipped.
+  Strength < Challenge:   Both cards are discarded. The Fool loses Vitality equal to the difference.
 
-Using Volition
-  Equal:    Both the Volition card and Challenge are discarded.
-  Greater:  Volition is discarded. The Challenge remains in the field
-            with its value permanently reduced by the Volition's value.
-  Less:     Both cards are discarded. The Fool loses Vitality equal to
-            the difference between the Challenge and Volition values.
+Using Volition (drag equipped Volition onto a Challenge, or use the Challenge's action menu)
+  Volition >= Challenge:   Both cards are discarded.
+  Volition < Challenge:   Volition is discarded. The Challenge remains with its value permanently reduced by Volition's value.
 
-Using Vitality
-  Subtract the Challenge's value directly from the Fool's Vitality.
-  The Challenge is then discarded.
+Using Vitality directly (drag the Fool onto a Challenge, or use the Challenge's action menu)
+  The Challenge's current value is subtracted from the Fool's Vitality. The Challenge is then discarded.
 
 ------------------------------
 ADVENTURE ROUNDS
 ------------------------------
-When only 1 card remains in the Adventure Field, deal 3 more cards to begin a new Adventure round.
+When only 1 card remains in the Adventure Field, 3 more cards are dealt automatically to begin a new Adventure round. The remaining card carries over to the new field.
 
 ------------------------------
 WINNING AND LOSING
 ------------------------------
-  Loss  Vitality reaches 0 or below.
-  Win   All Challenges overcome and the deck is exhausted.
-  Tie   If Vitality hits 0 on the very final Challenge, consider the
-		story created by the journey to decide the outcome."""
+  Win   All 21 Challenges overcome and the deck is exhausted.
+  Loss  The Fool's Vitality reaches 0."""

@@ -55,6 +55,8 @@ func _ready():
 	GameState.state_changed.connect(_on_state_changed)
 	GameState.game_over.connect(_on_game_over)
 	GameState.game_won.connect(_on_game_won)
+	
+	GameState.discard_viewer_requested.connect(show_discard_viewer)
 
 	# Connect to ThemeManager so the board recolors when theme changes
 	ThemeManager.theme_changed.connect(_on_theme_changed)
@@ -171,11 +173,13 @@ func _on_game_over(reason: String):
 	# Small delay so player can see the final board state before transitioning
 	# create_timer().timeout is like setTimeout() in JS
 	await get_tree().create_timer(1.5).timeout
+	RenderingServer.set_default_clear_color(Color.BLACK)
 	get_tree().change_scene_to_file("res://LoseScreen.tscn")
 
 func _on_game_won():
 	print("YOU WIN!")
 	await get_tree().create_timer(1.5).timeout
+	RenderingServer.set_default_clear_color(Color.BLACK)
 	get_tree().change_scene_to_file("res://WinScreen.tscn")
 
 func _on_theme_changed(_new_theme: String):
@@ -384,6 +388,11 @@ func _setup_colors():
 		stylebox.content_margin_top = 16
 		stylebox.content_margin_bottom = 16
 		node.add_theme_stylebox_override("panel", stylebox)
+		
+	# NEW: set the background clear color to match the current theme
+	# This colors the area behind all zone panels rather than showing
+	# Godot's default gray
+	RenderingServer.set_default_clear_color(ThemeManager.get_current()["background"])
 
 # ------------------------------------
 # LABEL STYLING
@@ -450,17 +459,18 @@ func _setup_audio_controls():
 	panel.add_child(vbox)
 
 	var music_btn = Button.new()
-	music_btn.text = "Music"
-	music_btn.toggle_mode = true
-	music_btn.button_pressed = AudioManager.music_enabled
+	music_btn.text = "Music ON" if AudioManager.music_enabled else "Music OFF"
+	# REMOVED: music_btn.toggle_mode = true — was causing inconsistent hover appearance
+	# State is tracked manually via text change instead
+	#music_btn.button_pressed = AudioManager.music_enabled
 	music_btn.pressed.connect(func():
 		AudioManager.toggle_music()
 		music_btn.text = "Music ON" if AudioManager.music_enabled else "Music OFF")
 	vbox.add_child(music_btn)
 
 	var sfx_btn = Button.new()
-	sfx_btn.text = "SFX"
-	sfx_btn.toggle_mode = true
+	sfx_btn.text = "SFX ON" if AudioManager.sfx_enabled else "SFX OFF"
+	#sfx_btn.toggle_mode = true
 	sfx_btn.button_pressed = AudioManager.sfx_enabled
 	sfx_btn.pressed.connect(func():
 		AudioManager.toggle_sfx()
@@ -475,6 +485,13 @@ func _setup_audio_controls():
 		# This keeps the game scene alive so nothing resets
 		_show_rules_overlay())
 	vbox.add_child(rules_btn)
+	
+	var menu_btn = Button.new()
+	menu_btn.text = "Main Menu"
+	menu_btn.pressed.connect(func():
+		AudioManager.play_menu_click()
+		_confirm_return_to_menu())
+	vbox.add_child(menu_btn)
 
 	# Toggle both panel and backdrop together
 	gear_btn.pressed.connect(func():
@@ -487,16 +504,12 @@ func _setup_audio_controls():
 		backdrop.visible = false)
 
 func _show_rules_overlay():
-	# Build a full-screen dimmed overlay so the game is visible but inactive
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.85)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
 
 	var panel = PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(700, 550)
-	# Center the panel on screen
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.offset_left = 100
 	panel.offset_right = -100
@@ -504,21 +517,18 @@ func _show_rules_overlay():
 	panel.offset_bottom = -60
 	overlay.add_child(panel)
 
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-	panel.add_child(vbox)
-
-	# Add margin inside the panel
+	# FIXED: single MarginContainer directly inside panel
+	# previously had both an empty vbox and a margin as siblings which caused confusion
 	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 24)
-	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_left", 32)
+	margin.add_theme_constant_override("margin_right", 32)
 	margin.add_theme_constant_override("margin_top", 16)
 	margin.add_theme_constant_override("margin_bottom", 16)
+	panel.add_child(margin)
 
 	var inner_vbox = VBoxContainer.new()
 	inner_vbox.add_theme_constant_override("separation", 12)
 	margin.add_child(inner_vbox)
-	panel.add_child(margin)
 
 	var title = Label.new()
 	title.text = "The Fool's Journey — Rules"
@@ -547,3 +557,37 @@ func _show_rules_overlay():
 func _get_rules_text() -> String:
 	# Same rules text as RulesScreen which calls from ThemeManager
 	return ThemeManager.get_rules_text()
+	
+func _confirm_return_to_menu():
+	# ← Confirm before leaving since returning to menu resets the game
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+
+	var label = Label.new()
+	label.text = "Return to Main Menu?\nYour current game will be lost."
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 260
+	vbox.add_child(label)
+
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 8)
+
+	var confirm_btn = Button.new()
+	confirm_btn.text = "Confirm"
+	confirm_btn.pressed.connect(func():
+		popup.queue_free()
+		get_tree().change_scene_to_file("res://MainMenu.tscn"))
+	btn_row.add_child(confirm_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	btn_row.add_child(cancel_btn)
+
+	vbox.add_child(btn_row)
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()

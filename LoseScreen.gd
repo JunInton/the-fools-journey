@@ -32,9 +32,11 @@ func _ready():
 	AudioManager.set_screen("lose")
 	var text = LOSE_TEXT[ThemeManager.current_theme]
 
-	var stylebox = StyleBoxFlat.new()
-	stylebox.bg_color = ThemeManager.get_current()["background"]
-	add_theme_stylebox_override("panel", stylebox)
+	# CHANGED: black background for all themes
+	ThemeManager.apply_screen_background(
+		self, "lose",
+		Color.BLACK, Color.BLACK,
+		Color.BLACK)
 
 	var challenges_remaining = 0
 	for card in GameState.adventure_field:

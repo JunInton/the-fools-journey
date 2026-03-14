@@ -29,12 +29,19 @@ const WIN_TEXT = {
 }
 
 func _ready():
+	# Makes root Control fill the viewport
+	# same fix as MainMenu.gd — without it background nodes render at 0x0
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	
 	AudioManager.set_screen("win")
 	var text = WIN_TEXT[ThemeManager.current_theme]
 
-	var stylebox = StyleBoxFlat.new()
-	stylebox.bg_color = ThemeManager.get_current()["background"]
-	add_theme_stylebox_override("panel", stylebox)
+	# CHANGED: black background for all themes now
+	# image path in ThemeManager.backgrounds.win will override when added later
+	ThemeManager.apply_screen_background(
+		self, "win",
+		Color.BLACK, Color.BLACK,
+		Color.BLACK)
 
 	title_label.text = text["title"]
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

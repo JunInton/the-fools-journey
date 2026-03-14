@@ -257,6 +257,18 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	# The Fool resolves a challenge directly (takes damage)
 	if source == "fool" and my_role == CardData.ROLE_CHALLENGE:
 		return true
+		
+	# NEW: dropping a wisdom card onto an existing wisdom card
+	# equips it to the wisdom zone — avoids frustration of misdrops
+	if my_role == CardData.ROLE_WISDOM and role == CardData.ROLE_WISDOM:
+		if source != "equipped_wisdom":
+			return GameState.equipped_wisdom.size() < 3
+
+	# NEW: dropping any storable card onto a satchel card stores it
+	# as long as it's not a challenge, fool, or already in the satchel
+	if source_zone == "satchel" and role != CardData.ROLE_CHALLENGE and role != CardData.ROLE_FOOL:
+		if source != "satchel":
+			return GameState.satchel.size() < GameState.MAX_SATCHEL
 
 	return false
 
@@ -278,7 +290,11 @@ func _drop_data(_at_position: Vector2, data: Variant):
 		elif source == "equipped_wisdom":
 			GameState.unequip_wisdom_to_discard(card)  # ← pass specific card
 		else:
-			GameState.discard_card(card, source == "satchel")
+			# ← NEW: same Ace check for drops onto the discard pile card
+			if card.get("role", "") == CardData.ROLE_CHANCE:
+				_show_ace_drop_menu(card, source == "satchel")
+			else:
+				GameState.discard_card(card, source == "satchel")
 		return
 
 	# Vitality dropped onto Fool card
@@ -304,6 +320,17 @@ func _drop_data(_at_position: Vector2, data: Variant):
 	if card.get("role", "") == CardData.ROLE_HELPER:
 		GameState.deploy_helper(card, card_data, source == "satchel")
 		return
+		
+	# NEW: wisdom card dropped onto equipped wisdom card
+	if card_data.get("role", "") == CardData.ROLE_WISDOM and card.get("role", "") == CardData.ROLE_WISDOM:
+		GameState.equip_wisdom(card, source == "satchel")
+		return
+
+	# NEW: any card dropped onto a satchel card stores it
+	if source_zone == "satchel" and card.get("role", "") != CardData.ROLE_CHALLENGE:
+		if source != "satchel":
+			GameState.store_in_satchel(card)
+		return
 
 	if source == "equipped_volition":
 		GameState.resolve_with_volition(card_data)
@@ -316,6 +343,39 @@ func _drop_data(_at_position: Vector2, data: Variant):
 	if source == "fool":
 		GameState.resolve_directly(card_data)
 		return
+		
+func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title = Label.new()
+	title.text = card.get("name", "Ace")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var chance_btn = Button.new()
+	chance_btn.text = "Take a Chance — reshuffle Adventure"
+	chance_btn.pressed.connect(func():
+		popup.queue_free()
+		GameState.use_chance(card, from_satchel))
+	vbox.add_child(chance_btn)
+
+	var discard_btn = Button.new()
+	discard_btn.text = "Discard"
+	discard_btn.pressed.connect(func():
+		popup.queue_free()
+		GameState.discard_card(card, from_satchel))
+	vbox.add_child(discard_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(cancel_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()
 
 # ------------------------------------
 # INPUT HANDLING
@@ -323,6 +383,13 @@ func _drop_data(_at_position: Vector2, data: Variant):
 # Single clicks are handled by Godot's drag system automatically.
 # ------------------------------------
 func _gui_input(event: InputEvent):
+	if event is InputEventMouseButton:
+		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
+			# ← CHANGED: allow double-click even when not draggable
+			# discard pile cards are non-draggable but should still
+			# respond to double-click to open the discard viewer
+			_handle_double_click()
+			return
 	if not draggable:
 		return
 	if event is InputEventMouseButton:
@@ -338,7 +405,11 @@ func _handle_double_click():
 		return
 
 	# Cards in discard pile or fool zone are not interactive
-	if role == CardData.ROLE_FOOL or source_zone == "discard":
+	if role == CardData.ROLE_FOOL: # or source_zone == "discard":
+		return
+		
+	if source_zone == "discard":
+		GameState.emit_signal("discard_viewer_requested")
 		return
 		
 	# Equipped strength/volition now open a minimal menu
