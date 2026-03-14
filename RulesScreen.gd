@@ -22,7 +22,7 @@ func _ready():
 	add_theme_stylebox_override("panel", stylebox)
 
 	# Title
-	title_label.text = "The Fool's Journey — Rules"
+	title_label.text = "How to Play"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 32)
 	title_label.add_theme_color_override("font_color", theme_data["label_color"])
@@ -33,7 +33,7 @@ func _ready():
 	rules_label.custom_minimum_size.x = 600
 
 	# Back button
-	back_button.text = "< Back"
+	back_button.text = "Back"
 	back_button.pressed.connect(_on_back_pressed)
 
 func _on_back_pressed():

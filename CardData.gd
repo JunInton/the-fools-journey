@@ -113,12 +113,21 @@ func _royal_role(suit: String) -> String:
 # which Card.gd uses to fall back to colored rectangle display.
 # ------------------------------------
 func get_card_image_path(card: Dictionary) -> String:
-	# Only RWS theme has images currently
-	# Persona themes fall back to colored rectangles until
-	# their own image sets are added later
-	if ThemeManager.current_theme != ThemeManager.THEME_RWS:
-		return ""
-	return "res://assets/cards/rws/" + _get_rws_filename(card)
+	match ThemeManager.current_theme:
+		ThemeManager.THEME_RWS:
+			var filename = _get_rws_filename(card)
+			if filename == "":
+				return ""
+			return "res://assets/cards/rws/" + filename
+		ThemeManager.THEME_PERSONA3:
+			# NEW: same filename convention as RWS, different folder
+			var filename = _get_rws_filename(card)
+			if filename == "":
+				return ""
+			return "res://assets/cards/persona3/" + filename
+		_:
+			# Persona 5 and any future themes fall back to colored rectangles
+			return ""
 
 func _get_rws_filename(card: Dictionary) -> String:
 	var suit = card.get("suit", "")

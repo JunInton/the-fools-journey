@@ -14,7 +14,7 @@ var draggable: bool = true
 @onready var card_value_label = $VBoxContainer/CardValue
 
 func _ready():
-	custom_minimum_size = Vector2(110, 0)
+	custom_minimum_size = Vector2(130, 0)
 
 	var outer_style = StyleBoxFlat.new()
 	outer_style.bg_color = Color(0, 0, 0, 0)
@@ -31,8 +31,11 @@ func _ready():
 
 	# Equipped cards sit on top of a DropZone - we ignore mouse events
 	# so clicks pass through to the DropZone beneath them
+	# CHANGED: was MOUSE_FILTER_IGNORE which blocked double-clicks entirely
+	# MOUSE_FILTER_PASS receives mouse events AND passes them through to
+	# the DropZone below, so both double-click and drop interactions work
 	if source_zone in ["equipped_strength", "equipped_volition"]:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mouse_filter = Control.MOUSE_FILTER_PASS
 
 	# CardBorder and CardImage must pass mouse events up to the parent Card node.
 	# Without MOUSE_FILTER_PASS, CardBorder (being a PanelContainer) consumes all
@@ -66,7 +69,7 @@ func update_display():
 	card_name_label.text = card_data.get("name", "Unknown")
 	card_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_name_label.max_lines_visible = 2
-	card_name_label.add_theme_font_size_override("font_size", 11)
+	card_name_label.add_theme_font_size_override("font_size", 13)
 	card_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Reserve space for exactly 2 lines always, even if the name
 	# only needs 1 line. Without this, single-line names make cards shorter
@@ -106,7 +109,7 @@ func update_display():
 		card_value_label.visible = true
 
 	card_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card_value_label.add_theme_font_size_override("font_size", 11)
+	card_value_label.add_theme_font_size_override("font_size", 13)
 
 	_apply_color()
 
@@ -165,8 +168,14 @@ func show_card_back():
 	card_name_label.visible = false
 	card_value_label.visible = false
 
+	# CHANGED: pick card back based on current theme
+	# so each theme can have its own card back image
+	var back_path = "res://assets/cards/rws/card_back.jpg"
+	if ThemeManager.current_theme == ThemeManager.THEME_PERSONA3:
+		back_path = "res://assets/cards/persona3/card_back.jpg"
+		
 	# CHANGED: load directly without FileAccess check
-	var texture = load("res://assets/cards/rws/card_back.jpg")
+	var texture = load(back_path)
 	if texture != null:
 		card_image.texture = texture
 		card_image.visible = true
@@ -215,6 +224,14 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	var role = card.get("role", "")
 	var my_role = card_data.get("role", "")
 	var my_suit = card_data.get("suit", "")
+	
+	# ← NEW: if this card is in the discard pile, only accept the
+	# drag-to-discard interaction. Block everything else including
+	# challenge resolution drops from equipped cards.
+	if source_zone == "discard":
+		if role != CardData.ROLE_CHALLENGE and role != CardData.ROLE_FOOL:
+			return true
+		return false
 
 	# Helper dropped onto a same-suit pip card to double its value
 	# Requires: same suit, target not already doubled, wisdom available
@@ -252,7 +269,19 @@ func _drop_data(_at_position: Vector2, data: Variant):
 	var card = data.get("card", {})
 	var source = data.get("source_zone", "")
 	
-	# NEW: Vitality dropped onto Fool card — same logic as double-click heal
+	# Card dropped onto discard pile's displayed card
+	if source_zone == "discard":
+		if source == "equipped_strength":
+			GameState.unequip_strength_to_discard()
+		elif source == "equipped_volition":
+			GameState.unequip_volition_to_discard()
+		elif source == "equipped_wisdom":
+			GameState.unequip_wisdom_to_discard(card)  # ← pass specific card
+		else:
+			GameState.discard_card(card, source == "satchel")
+		return
+
+	# Vitality dropped onto Fool card
 	if card_data.get("role", "") == CardData.ROLE_FOOL and card.get("role", "") == CardData.ROLE_VITALITY:
 		var heal_amount = card.get("value", 0)
 		var current_vitality = GameState.vitality
@@ -270,7 +299,7 @@ func _drop_data(_at_position: Vector2, data: Variant):
 				func(): GameState.replenish_vitality(card, source == "satchel"))
 		else:
 			GameState.replenish_vitality(card, source == "satchel")
-		return
+		return  # ← critical return
 
 	if card.get("role", "") == CardData.ROLE_HELPER:
 		GameState.deploy_helper(card, card_data, source == "satchel")
@@ -286,6 +315,7 @@ func _drop_data(_at_position: Vector2, data: Variant):
 
 	if source == "fool":
 		GameState.resolve_directly(card_data)
+		return
 
 # ------------------------------------
 # INPUT HANDLING
@@ -298,72 +328,205 @@ func _gui_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
 			_handle_double_click()
-
+			
 func _handle_double_click():
 	var role = card_data.get("role", "")
+
+	# Challenges always go straight to their own dialog
+	if role == CardData.ROLE_CHALLENGE:
+		_show_challenge_dialog()
+		return
+
+	# Cards in discard pile or fool zone are not interactive
+	if role == CardData.ROLE_FOOL or source_zone == "discard":
+		return
+		
+	# Equipped strength/volition now open a minimal menu
+	# with only a discard option since they can't be re-equipped from here
+	if source_zone in ["equipped_strength", "equipped_volition"]:
+		_show_equipped_discard_menu()
+		return
+
+	# All other cards show the action menu
+	_show_action_menu()
+
+func _show_action_menu():
+	var role = card_data.get("role", "")
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title = Label.new()
+	title.text = card_data.get("name", "")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
 	match role:
-		CardData.ROLE_CHANCE:
-			_confirm_action("Reshuffle the adventure field into the deck?", func():
-				GameState.use_chance(card_data, source_zone == "satchel"))
-
-		CardData.ROLE_WISDOM:
-			if source_zone == "equipped_wisdom":
-				return
-			GameState.equip_wisdom(card_data, source_zone == "satchel")
-
-		CardData.ROLE_STRENGTH:
-			if source_zone == "equipped_strength":
-				return
-			if GameState.equipped_strength != null:
-				_confirm_action("Replace equipped Strength card?", func():
-					GameState.equip_strength(card_data, source_zone == "satchel"))
-			else:
-				GameState.equip_strength(card_data, source_zone == "satchel")
-
-		CardData.ROLE_VOLITION:
-			if source_zone == "equipped_volition":
-				return
-			if GameState.equipped_volition != null:
-				_confirm_action("Replace equipped Volition card?", func():
-					GameState.equip_volition(card_data, source_zone == "satchel"))
-			else:
-				GameState.equip_volition(card_data, source_zone == "satchel")
-
 		CardData.ROLE_VITALITY:
 			var heal_amount = card_data.get("value", 0)
 			var current_vitality = GameState.vitality
 			var max_vitality = GameState.MAX_VITALITY
-
+			var heal_btn = Button.new()
 			if current_vitality >= max_vitality:
-				# Already at full - offer to discard instead
-				_confirm_action("Vitality is full. Discard this card?", func():
-					GameState.discard_card(card_data, source_zone == "satchel"))
-
+				heal_btn.text = "Heal — Vitality already full"
+				heal_btn.disabled = true
 			elif current_vitality + heal_amount > max_vitality:
-				# ← NEW: healing would exceed maximum - show overheal warning
-				# so the player can make an informed decision rather than
-				# accidentally wasting part of the card's value
-				var actual_heal = max_vitality - current_vitality
-				var wasted = heal_amount - actual_heal
-				_confirm_action(
-					"Healing " + str(heal_amount) + " would overheal.\n" +
-					"You will only recover " + str(actual_heal) + " vitality (" +
-					str(wasted) + " wasted).\nProceed?",
-					func(): GameState.replenish_vitality(card_data, source_zone == "satchel"))
+				var actual = max_vitality - current_vitality
+				var wasted = heal_amount - actual
+				heal_btn.text = "Heal " + str(heal_amount) + " (only " + str(actual) + " effective)"
+				heal_btn.pressed.connect(func():
+					popup.queue_free()
+					_confirm_action(
+						"Healing " + str(heal_amount) + " would overheal.\n" +
+						"You will only recover " + str(actual) + " vitality (" +
+						str(wasted) + " wasted).\nProceed?",
+						func(): GameState.replenish_vitality(card_data, source_zone == "satchel")))
 			else:
-				# Clean heal with no waste - no confirmation needed
-				GameState.replenish_vitality(card_data, source_zone == "satchel")
+				heal_btn.text = "Heal " + str(heal_amount) + " Vitality"
+				heal_btn.pressed.connect(func():
+					popup.queue_free()
+					GameState.replenish_vitality(card_data, source_zone == "satchel"))
+			vbox.add_child(heal_btn)
 
-		CardData.ROLE_CHALLENGE:
-			_show_challenge_dialog()
+		CardData.ROLE_WISDOM:
+			if source_zone != "equipped_wisdom":
+				var equip_btn = Button.new()
+				equip_btn.text = "Equip as Wisdom"
+				equip_btn.pressed.connect(func():
+					popup.queue_free()
+					GameState.equip_wisdom(card_data, source_zone == "satchel"))
+				vbox.add_child(equip_btn)
+
+		CardData.ROLE_STRENGTH:
+			if source_zone != "equipped_strength":
+				var equip_btn = Button.new()
+				if GameState.equipped_strength != null:
+					# ← CHANGED: show exactly what will happen, no second confirmation
+					equip_btn.text = "Replace " + GameState.equipped_strength.get("name", "Strength") + " with " + card_data.get("name", "")
+					equip_btn.pressed.connect(func():
+						popup.queue_free()
+						GameState.equip_strength(card_data, source_zone == "satchel"))
+				else:
+					equip_btn.text = "Equip as Strength"
+					equip_btn.pressed.connect(func():
+						popup.queue_free()
+						GameState.equip_strength(card_data, source_zone == "satchel"))
+				vbox.add_child(equip_btn)
+
+		CardData.ROLE_VOLITION:
+			if source_zone != "equipped_volition":
+				var equip_btn = Button.new()
+				if GameState.equipped_volition != null:
+					# ← CHANGED: same pattern as strength
+					equip_btn.text = "Replace " + GameState.equipped_volition.get("name", "Volition") + " with " + card_data.get("name", "")
+					equip_btn.pressed.connect(func():
+						popup.queue_free()
+						GameState.equip_volition(card_data, source_zone == "satchel"))
+				else:
+					equip_btn.text = "Equip as Volition"
+					equip_btn.pressed.connect(func():
+						popup.queue_free()
+						GameState.equip_volition(card_data, source_zone == "satchel"))
+				vbox.add_child(equip_btn)
+
+		CardData.ROLE_CHANCE:
+			var chance_btn = Button.new()
+			# ← CHANGED: triggers immediately, no second confirmation popup
+			chance_btn.text = "Take a Chance — reshuffle Adventure"
+			chance_btn.pressed.connect(func():
+				popup.queue_free()
+				GameState.use_chance(card_data, source_zone == "satchel"))
+			vbox.add_child(chance_btn)
 
 		CardData.ROLE_HELPER:
-			if GameState.equipped_wisdom.size() == 0:
-				return
-			var targets = _find_helper_targets()
-			if targets.is_empty():
-				return
-			_show_helper_dialog(targets)
+			# ← CHANGED: show individual target buttons directly instead of
+			# opening a second helper dialog — one fewer click to deploy
+			if GameState.equipped_wisdom.size() > 0:
+				var targets = _find_helper_targets()
+				if targets.is_empty():
+					var no_targets = Label.new()
+					no_targets.text = "No valid targets to deploy to"
+					no_targets.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+					vbox.add_child(no_targets)
+				else:
+					var deploy_label = Label.new()
+					deploy_label.text = "Deploy Helper (costs 1 Wisdom) to:"
+					deploy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+					vbox.add_child(deploy_label)
+					for target in targets:
+						var btn = Button.new()
+						btn.text = target.label
+						var captured = target
+						btn.pressed.connect(func():
+							popup.queue_free()
+							GameState.deploy_helper(card_data, captured.card, source_zone == "satchel"))
+						vbox.add_child(btn)
+			else:
+				var no_wisdom = Label.new()
+				no_wisdom.text = "No Wisdom equipped to deploy Helper"
+				no_wisdom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				vbox.add_child(no_wisdom)
+
+	# Store in Satchel — available from adventure field when satchel has space
+	# ← NEW: gives players a direct shortcut to store without drag-and-drop
+	if source_zone == "adventure" and role != CardData.ROLE_CHANCE:
+		if GameState.satchel.size() < GameState.MAX_SATCHEL:
+			var store_btn = Button.new()
+			store_btn.text = "Store in Satchel"
+			store_btn.pressed.connect(func():
+				popup.queue_free()
+				GameState.store_in_satchel(card_data))
+			vbox.add_child(store_btn)
+
+	# Discard option
+	if source_zone not in ["equipped_strength", "equipped_volition"]:
+		var discard_btn = Button.new()
+		discard_btn.text = "Discard"
+		discard_btn.pressed.connect(func():
+			popup.queue_free()
+			if source_zone == "equipped_wisdom":
+				GameState.unequip_wisdom_to_discard(card_data)
+			else:
+				GameState.discard_card(card_data, source_zone == "satchel"))
+		vbox.add_child(discard_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(cancel_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()
+	
+func _show_equipped_discard_menu():
+	var popup = PopupPanel.new()
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title = Label.new()
+	title.text = card_data.get("name", "") + " (Equipped)"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var discard_btn = Button.new()
+	discard_btn.text = "Discard"
+	discard_btn.pressed.connect(func():
+		popup.queue_free()
+		if source_zone == "equipped_strength":
+			GameState.unequip_strength_to_discard()
+		elif source_zone == "equipped_volition":
+			GameState.unequip_volition_to_discard())
+	vbox.add_child(discard_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.pressed.connect(func(): popup.queue_free())
+	vbox.add_child(cancel_btn)
+
+	popup.add_child(vbox)
+	get_tree().root.add_child(popup)
+	popup.popup_centered()
 
 # ------------------------------------
 # CHALLENGE RESOLUTION DIALOG

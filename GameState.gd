@@ -59,6 +59,11 @@ var carried_over_card = null
 # Guard flag for Chance interaction quirks
 var _adventure_end_pending: bool = false
 
+# Tracks the last challenge involved in ending the game
+# Read by WinScreen and LoseScreen to display the final card
+var last_resolved_challenge = null  # last challenge successfully overcome
+var last_fatal_challenge = null     # challenge that drained final vitality
+
 # ------------------------------------
 # SETUP
 # ------------------------------------
@@ -258,6 +263,7 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 	if vol_value >= challenge_value:
 		# Overcome! Discard both
 		print("Challenge OVERCOME with Volition!")
+		last_resolved_challenge = challenge
 		discard_pile.append(equipped_volition)
 		discard_pile.append(challenge)
 		equipped_volition = null
@@ -270,7 +276,7 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 		discard_pile.append(equipped_volition)
 		equipped_volition = null
 		emit_signal("sfx_sword_hit")
-
+	
 	emit_signal("state_changed")
 	return true
 
@@ -288,6 +294,7 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 	if str_value == challenge_value:
 		# Exactly matched - both discarded
 		print("Challenge ENDURED exactly!")
+		last_resolved_challenge = challenge
 		discard_pile.append(equipped_strength)
 		discard_pile.append(challenge)
 		equipped_strength = null
@@ -296,6 +303,7 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 	elif str_value > challenge_value:
 		# Strength wins - challenge discarded, strength depleted
 		print("Challenge ENDURED, Strength depleted by ", challenge_value)
+		last_resolved_challenge = challenge
 		equipped_strength.value -= challenge_value
 		discard_pile.append(challenge)
 		_remove_from_source(challenge, false)
@@ -304,6 +312,8 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		# Challenge wins - both discarded, Fool takes damage
 		var damage = challenge_value - str_value
 		print("Challenge ENDURED at cost! Fool takes ", damage, " damage")
+		last_resolved_challenge = challenge
+		last_fatal_challenge = challenge
 		vitality -= damage
 		discard_pile.append(equipped_strength)
 		discard_pile.append(challenge)
@@ -324,6 +334,8 @@ func resolve_directly(challenge: Dictionary) -> bool:
 	vitality -= challenge.value
 	emit_signal("sfx_vitality_damage")
 	print("Challenge resolved directly! Vitality cost: ", challenge.value)
+	last_fatal_challenge = challenge
+	last_resolved_challenge = challenge
 	discard_pile.append(challenge)
 	# _remove_from_source replaces the old adventure_field.erase() + _on_card_resolved()
 	# pattern - one call handles both removal and adventure completion check
@@ -469,6 +481,7 @@ func unequip_strength_to_discard() -> bool:
 		return false
 	discard_pile.append(equipped_strength)
 	equipped_strength = null
+	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
 	print("Strength unequipped and discarded.")
 	return true
@@ -478,6 +491,18 @@ func unequip_volition_to_discard() -> bool:
 		return false
 	discard_pile.append(equipped_volition)
 	equipped_volition = null
+	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
 	print("Volition unequipped and discarded.")
+	return true
+	
+func unequip_wisdom_to_discard(card: Dictionary) -> bool:
+	if equipped_wisdom.is_empty():
+		return false
+	if not equipped_wisdom.has(card):
+		return false
+	equipped_wisdom.erase(card)
+	discard_pile.append(card)
+	emit_signal("sfx_card_discard")
+	emit_signal("state_changed")
 	return true

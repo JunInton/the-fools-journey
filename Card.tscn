@@ -17,7 +17,7 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="CardBorder" type="PanelContainer" parent="VBoxContainer" unique_id=1446178788]
-custom_minimum_size = Vector2(0, 140)
+custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 
 [node name="CardImage" type="TextureRect" parent="VBoxContainer/CardBorder" unique_id=1431652206]

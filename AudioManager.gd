@@ -97,6 +97,10 @@ func play_music(screen: String):
 		if music_player.stream.resource_path == path:
 			print("Same stream already playing, skipping")
 			return
+	# null check due to missing Persona 5 files
+	if stream == null:
+		music_player.stop()
+		return
 	music_player.stream = stream
 	music_player.play()
 	print("play() called. Now playing: ", music_player.playing)

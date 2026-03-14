@@ -4,7 +4,6 @@ extends Control
 @onready var stats_label = $CenterContainer/VBoxContainer/StatsLabel
 @onready var play_again_btn = $CenterContainer/VBoxContainer/PlayAgainBtn
 
-# Win screen text varies by theme
 const WIN_TEXT = {
 	ThemeManager.THEME_RWS: {
 		"title": "The Fool Completes His Journey!",
@@ -32,31 +31,73 @@ const WIN_TEXT = {
 func _ready():
 	AudioManager.set_screen("win")
 	var text = WIN_TEXT[ThemeManager.current_theme]
-	
+
+	var stylebox = StyleBoxFlat.new()
+	stylebox.bg_color = ThemeManager.get_current()["background"]
+	add_theme_stylebox_override("panel", stylebox)
+
 	title_label.text = text["title"]
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 38)
 	title_label.add_theme_color_override("font_color", text["title_color"])
 
-	# Show final vitality as the player's score
-	# GameState persists through scene changes so we can read it here
 	stats_label.text = "The Fool survived with " + str(GameState.vitality) + text["stats_suffix"]
 	stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_label.add_theme_font_size_override("font_size", 20)
 	stats_label.add_theme_color_override("font_color", text["stats_color"])
 
-	play_again_btn.text = "Journey Again"
-	play_again_btn.pressed.connect(_on_play_again_pressed)
+	# ← NEW: show the final challenge that was overcome
+	_add_final_card_display(
+		GameState.last_resolved_challenge,
+		"Final Challenge Overcome:",
+		text["title_color"])
 
+	play_again_btn.text = text["button"]
+	play_again_btn.pressed.connect(_on_play_again_pressed)
 	$CenterContainer/VBoxContainer.add_theme_constant_override("separation", 24)
-	
-	var stylebox = StyleBoxFlat.new()
-	stylebox.bg_color = ThemeManager.get_current()["background"]
-	add_theme_stylebox_override("panel", stylebox)
+
+func _add_final_card_display(challenge, label_text: String, accent_color: Color):
+	if challenge == null:
+		return
+
+	var vbox = $CenterContainer/VBoxContainer
+
+	# Section label
+	var section_label = Label.new()
+	section_label.text = label_text
+	section_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	section_label.add_theme_font_size_override("font_size", 16)
+	section_label.add_theme_color_override("font_color", accent_color)
+	# Insert before the button
+	vbox.add_child(section_label)
+	vbox.move_child(section_label, play_again_btn.get_index())
+
+	# Card name and value
+	# CHANGED: only show card name text for themes where cards
+	# don't display their own name on the image (e.g. Persona 3)
+	# RWS cards already have the name printed on the card image itself
+	if ThemeManager.current_theme != ThemeManager.THEME_RWS:
+		var card_label = Label.new()
+		card_label.text = challenge.get("name", "Unknown")
+		card_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card_label.add_theme_font_size_override("font_size", 18)
+		card_label.add_theme_color_override("font_color", Color.WHITE)
+		vbox.add_child(card_label)
+		vbox.move_child(card_label, play_again_btn.get_index())
+
+	# Card image
+	var image_path = CardData.get_card_image_path(challenge)
+	if image_path != "":
+		var texture = load(image_path)
+		if texture != null:
+			var tex_rect = TextureRect.new()
+			tex_rect.texture = texture
+			tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tex_rect.custom_minimum_size = Vector2(120, 200)
+			tex_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			vbox.add_child(tex_rect)
+			vbox.move_child(tex_rect, play_again_btn.get_index())
 
 func _on_play_again_pressed():
-	# Return to main menu rather than restarting directly
-	# This lets the player trigger the Konami code theme switch
-	# before starting a new run, and is cleaner UX overall
 	AudioManager.play_menu_click()
 	get_tree().change_scene_to_file("res://MainMenu.tscn")
