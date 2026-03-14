@@ -67,6 +67,10 @@ var _adventure_end_pending: bool = false
 var last_resolved_challenge = null  # last challenge successfully overcome
 var last_fatal_challenge = null     # challenge that drained final vitality
 
+# NEW: counter for assigning unique IDs to cards
+# Each card gets a _id field so we can track it across zone changes
+var _next_card_id: int = 0
+
 # ------------------------------------
 # SETUP
 # ------------------------------------
@@ -83,6 +87,27 @@ func start_game():
 			deck.append(card.duplicate())  # .duplicate() is like JS spread {...card}
 
 	_shuffle_deck()
+	
+	# NEW: assign a unique _id to every card in the deck
+	# This lets Main.gd track which node represents which card
+	# across zone changes without destroying and recreating nodes.
+	# Like a React key — stable identity for each card throughout the game.
+	_next_card_id = 0
+	for card in deck:
+		card["_id"] = _next_card_id
+		_next_card_id += 1
+		
+	# The Fool lives outside the deck so gets a fixed special ID
+	CardData.all_cards[0]["_id"] = -1
+		
+	# TEMPORARY: verify IDs are being assigned correctly
+	print("First 5 card IDs:")
+	for i in range(5):
+		# ← CHANGED: use ["name"] bracket notation instead of .name
+		print("  ", deck[i]["name"], " -> _id: ", deck[i]["_id"])
+	print("Total cards with IDs: ", deck.size())
+	print("Fool ID: ", CardData.all_cards[0]["_id"])
+	
 	vitality = MAX_VITALITY
 	satchel = []
 	discard_pile = []
