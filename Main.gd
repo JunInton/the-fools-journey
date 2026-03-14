@@ -1,5 +1,5 @@
 extends Control
-
+#
 const CardScene = preload("res://Card.tscn")
 
 # ------------------------------------
