@@ -18,6 +18,17 @@ signal sfx_reshuffle_start  # fires just before adventure field is cleared
 signal drag_started
 signal drag_ended
 
+# Pre-animation signals — fire before state changes so Main.gd
+# can capture card positions before nodes are removed
+signal anim_strength_vs_challenge(strength_id: int, challenge_id: int)
+signal anim_strength_survives(strength_id: int, challenge_id: int)
+signal anim_volition_vs_challenge(volition_id: int, challenge_id: int)
+signal anim_fool_vs_challenge(challenge_id: int)
+signal anim_challenge_damaged(challenge_id: int)
+signal anim_helper_deployed(helper_id: int, target_id: int)
+signal anim_vitality_heal(vitality_id: int)
+
+
 # Specific audio signals so AudioManager knows exactly what happened
 # One signal per meaningful audio moment - keeps sounds from stacking up
 signal sfx_card_deal
@@ -299,6 +310,11 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 
 	var vol_value = equipped_volition.value
 	var challenge_value = challenge.value
+	
+	# NEW: emit before state changes
+	emit_signal("anim_volition_vs_challenge",
+		equipped_volition.get("_id", -1),
+		challenge.get("_id", -1))
 
 	if vol_value >= challenge_value:
 		# Overcome! Discard both
@@ -315,6 +331,8 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 		challenge.value -= vol_value
 		discard_pile.append(equipped_volition)
 		equipped_volition = null
+		# NEW: emit after value is reduced so the flash shows the new value
+		emit_signal("anim_challenge_damaged", challenge.get("_id", -1))
 		emit_signal("sfx_sword_hit")
 	
 	emit_signal("state_changed")
@@ -333,6 +351,9 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 
 	if str_value == challenge_value:
 		# Exactly matched - both discarded
+		# ← CHANGED: emit moved inside branch so survive case uses different signal
+		emit_signal("anim_strength_vs_challenge",
+			equipped_strength.get("_id", -1), challenge.get("_id", -1))
 		print("Challenge ENDURED exactly!")
 		last_resolved_challenge = challenge
 		discard_pile.append(equipped_strength)
@@ -340,16 +361,25 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		equipped_strength = null
 		_remove_from_source(challenge, false)
 		emit_signal("sfx_challenge_resolved")
+
 	elif str_value > challenge_value:
-		# Strength wins - challenge discarded, strength depleted
+		# Strength wins - challenge discarded, strength survives with depleted value
+		# ← CHANGED: emits survive signal instead of collision signal
+		# so Main.gd knows to bounce the card back to its slot rather than discard it
+		emit_signal("anim_strength_survives",
+			equipped_strength.get("_id", -1), challenge.get("_id", -1))
 		print("Challenge ENDURED, Strength depleted by ", challenge_value)
 		last_resolved_challenge = challenge
 		equipped_strength.value -= challenge_value
 		discard_pile.append(challenge)
 		_remove_from_source(challenge, false)
 		emit_signal("sfx_challenge_resolved")
+
 	else:
 		# Challenge wins - both discarded, Fool takes damage
+		# ← CHANGED: emit moved inside branch, same collision signal as equal case
+		emit_signal("anim_strength_vs_challenge",
+			equipped_strength.get("_id", -1), challenge.get("_id", -1))
 		var damage = challenge_value - str_value
 		print("Challenge ENDURED at cost! Fool takes ", damage, " damage")
 		last_resolved_challenge = challenge
@@ -377,6 +407,10 @@ func resolve_directly(challenge: Dictionary) -> bool:
 	last_fatal_challenge = challenge
 	last_resolved_challenge = challenge
 	discard_pile.append(challenge)
+	
+	# NEW: emit before removing so Main.gd can capture positions
+	emit_signal("anim_fool_vs_challenge", challenge.get("_id", -1))
+	
 	# _remove_from_source replaces the old adventure_field.erase() + _on_card_resolved()
 	# pattern - one call handles both removal and adventure completion check
 	_remove_from_source(challenge, false)
@@ -393,6 +427,10 @@ func replenish_vitality(card: Dictionary, from_satchel: bool = false) -> bool:
 	vitality += healed
 	emit_signal("sfx_vitality_heal")
 	print("Vitality replenished by ", healed, ". Now at: ", vitality)
+	
+	# NEW: emit before removing card
+	emit_signal("anim_vitality_heal", card.get("_id", -1))
+	
 	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
 	emit_signal("state_changed")
@@ -504,6 +542,11 @@ func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from
 	# Double the target card's value and flag it
 	target_card["value"] = target_card["value"] * 2
 	target_card["doubled"] = true
+	
+	# NEW: emit before removing helper node
+	emit_signal("anim_helper_deployed",
+		helper_card.get("_id", -1),
+		target_card.get("_id", -1))
 
 	# Discard the helper
 	_remove_from_source(helper_card, helper_from_satchel)

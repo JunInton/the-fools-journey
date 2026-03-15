@@ -16,6 +16,16 @@ var _card_last_positions: Dictionary = {}  # ← NEW: int -> Vector2
 var _is_reshuffling: bool = false
 var _suppress_animations: bool = false
 var _chance_card_id: int = -1
+var _suppress_discard_render: bool = false
+var _delay_discard_ids: Dictionary = {}  # card_id -> delay in seconds
+# Stores pending collision animations keyed by the moving card's ID
+# Format: { card_id: { "type": "collision", "target_id": int } }
+# Checked in _sync_zone/_sync_single when cards are being removed
+var _pending_animations: Dictionary = {}
+var _pending_collision_positions: Dictionary = {}  # target_id -> Vector2
+var _pending_challenge_flashes: Dictionary = {}  # challenge_id -> true
+var _pending_fool_attack: Dictionary = {}  # challenge_id -> true
+var _pending_strength_bounce: Dictionary = {}  # strength_id -> challenge_id
 
 # ------------------------------------
 # @onready vars grab references to child nodes
@@ -82,7 +92,17 @@ func _ready():
 	
 	GameState.discard_viewer_requested.connect(show_discard_viewer)
 	
-	GameState.sfx_vitality_damage.connect(func(): animate_vitality_damage())
+	# CHANGED: vitality damage only fires immediately on drag-drop
+	# action menu path gets it delayed via animate_fool_attack
+	GameState.sfx_vitality_damage.connect(func():
+		if _suppress_animations:
+			animate_vitality_damage())
+	GameState.sfx_vitality_heal.connect(func(): 
+		# Only flash directly if animations are suppressed (drag-and-drop)
+		# or if there's no pending vitality animation
+		# The card animation will trigger the flash itself otherwise
+		if _suppress_animations:
+			animate_vitality_heal())
 	
 	GameState.sfx_reshuffle_start.connect(func():
 		_is_reshuffling = true
@@ -90,6 +110,40 @@ func _ready():
 	
 	GameState.drag_started.connect(func(): _suppress_animations = true)
 	GameState.drag_ended.connect(func(): _suppress_animations = false)
+	
+	GameState.anim_strength_vs_challenge.connect(func(str_id, chal_id):
+		_pending_animations[str_id] = {"type": "collision", "target_id": chal_id}
+		# NEW: delay challenge discard so collision animation plays first
+		_delay_discard_ids[chal_id] = 0.35
+		# NEW: suppress discard render immediately so no copy appears
+		_suppress_discard_render = true)
+		
+	GameState.anim_strength_survives.connect(func(str_id, chal_id):
+		_pending_strength_bounce[str_id] = chal_id
+		# Challenge gets delayed discard so bounce plays first
+		_delay_discard_ids[chal_id] = 0.45
+		_suppress_discard_render = true)
+
+	GameState.anim_volition_vs_challenge.connect(func(vol_id, chal_id):
+		_pending_animations[vol_id] = {"type": "collision", "target_id": chal_id}
+		# NEW: same delay for volition collision
+		_delay_discard_ids[chal_id] = 0.35
+		# NEW: same suppression
+		_suppress_discard_render = true)
+
+	GameState.anim_fool_vs_challenge.connect(func(chal_id):
+		_pending_fool_attack[chal_id] = true
+		_delay_discard_ids[chal_id] = 0.45
+		_suppress_discard_render = true)
+
+	GameState.anim_challenge_damaged.connect(func(chal_id):
+		_pending_challenge_flashes[chal_id] = true)
+
+	GameState.anim_helper_deployed.connect(func(helper_id, target_id):
+		_pending_animations[helper_id] = {"type": "helper", "target_id": target_id})
+		
+	GameState.anim_vitality_heal.connect(func(vitality_id):
+		_pending_animations[vitality_id] = {"type": "vitality_heal", "target_id": -1})
 
 	# Connect to ThemeManager so the board recolors when theme changes
 	ThemeManager.theme_changed.connect(_on_theme_changed)
@@ -236,7 +290,8 @@ func _render_all():
 	_sync_zone(wisdom_container, GameState.equipped_wisdom, "equipped_wisdom")
 	_sync_single(volition_container, GameState.equipped_volition, "equipped_volition")
 	_sync_single(strength_container, GameState.equipped_strength, "equipped_strength")
-	_render_discard()
+	if not _suppress_discard_render:
+		_render_discard()
 	_render_deck()
 	_render_fool_stats()
 	_render_fool_card()
@@ -293,6 +348,35 @@ func _sync_zone(container: Node, cards: Array, zone_name: String):
 						# Card moved to another zone — just remove node silently
 						# destination sync will handle creating and animating it
 						child.queue_free()
+					elif _pending_animations.has(id):
+						# ← NEW: collision or helper animation
+						var anim_data = _pending_animations[id]
+						_pending_animations.erase(id)
+						if anim_data["type"] == "helper":
+							animate_helper_deploy(child, anim_data["target_id"])
+						elif anim_data["type"] == "vitality_heal":
+							# ← NEW: vitality card slides to fool card
+							animate_vitality_card_heal(child)
+						else:
+							animate_collision(child, anim_data["target_id"])
+					elif _delay_discard_ids.has(id):
+						# NEW: challenge card waits for attacker to arrive
+						var delay = _delay_discard_ids[id]
+						_delay_discard_ids.erase(id)
+						# NEW: store position so animate_collision can find it
+						# even after this node is freed
+						_pending_collision_positions[id] = child.global_position
+						# NEW: if fool attack pending, trigger it now
+						if _pending_fool_attack.has(id):
+							_pending_fool_attack.erase(id)
+							animate_fool_attack(id)
+						var captured = child
+						get_tree().create_timer(delay).timeout.connect(func():
+							if is_instance_valid(captured):
+								animate_card_to_discard(captured)
+							# NEW: re-enable discard render after delay
+							_suppress_discard_render = false
+							_render_discard())
 					elif _is_reshuffling and id != _chance_card_id:
 						# Field cards return to deck on reshuffle
 						# but the ace itself goes to discard
@@ -335,6 +419,10 @@ func _sync_zone(container: Node, cards: Array, zone_name: String):
 			# reductions from volition or helper doubling show correctly
 			_card_nodes[id].card_data = card
 			_card_nodes[id].update_display()
+			# NEW: flash challenge value red if it was just damaged by volition
+			if _pending_challenge_flashes.has(id):
+				_pending_challenge_flashes.erase(id)
+				animate_challenge_damaged(_card_nodes[id])
 
 func _sync_single(container: Node, card, zone_name: String):
 	# Handles single-card slots like strength and volition
@@ -350,6 +438,11 @@ func _sync_single(container: Node, card, zone_name: String):
 				if _card_exists_in_any_zone(id):
 					# Card moved elsewhere — remove silently
 					child.queue_free()
+				elif _pending_animations.has(id):
+					# NEW: collision animation pending for this card
+					var anim_data = _pending_animations[id]
+					_pending_animations.erase(id)
+					animate_collision(child, anim_data["target_id"])
 				else:
 					# Card was discarded — animate to discard pile
 					animate_card_to_discard(child)
@@ -390,6 +483,15 @@ func _sync_single(container: Node, card, zone_name: String):
 		# Same card_data refresh as _sync_zone for consistency
 		_card_nodes[id].card_data = card
 		_card_nodes[id].update_display()
+		# NEW: trigger strength bounce if pending
+		if _pending_strength_bounce.has(id):
+			var chal_id = _pending_strength_bounce[id]
+			_pending_strength_bounce.erase(id)
+			animate_strength_bounce(_card_nodes[id], chal_id, container)
+		# existing challenge flash check
+		if _pending_challenge_flashes.has(id):
+			_pending_challenge_flashes.erase(id)
+			animate_challenge_damaged(_card_nodes[id])
 		
 func _card_exists_in_any_zone(card_id: int) -> bool:
 	# Returns true if the card is still present in any active game zone
@@ -428,12 +530,29 @@ func animate_card_in(card_node: Control, from_node: Control = null):
 	# CHANGED: read from_node position after await so layout is settled
 	# Previously from_position was captured before await giving wrong coords
 	var from_pos = from_node.global_position if from_node != null else dest
-	card_node.global_position = from_pos
-	var tween = card_node.create_tween()
+	# Skip animation if card is already at destination
+	if from_pos.distance_to(dest) < 10:
+		return
+	# ← CHANGED: use a duplicate on anim_layer instead of moving the real node
+	# Moving a HBoxContainer child's global_position directly causes the container
+	# to recalculate layout incorrectly, creating gaps between cards.
+	# The duplicate flies in visually while the real card stays invisible at
+	# its correct layout position — no layout conflict possible.
+	var preview = card_node.duplicate()
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview.size = card_node.size
+	anim_layer.add_child(preview)
+	preview.global_position = from_pos
+	card_node.modulate.a = 0  # hide real card during animation
+	var tween = preview.create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(card_node, "global_position", dest, 0.3)
-	
+	tween.tween_property(preview, "global_position", dest, 0.3)
+	tween.tween_callback(func():
+		if is_instance_valid(card_node):
+			card_node.modulate.a = 1.0
+		preview.queue_free())
+
 func animate_card_in_from_pos(card_node: Control, from_pos: Vector2):
 	if _suppress_animations:
 		return
@@ -441,11 +560,25 @@ func animate_card_in_from_pos(card_node: Control, from_pos: Vector2):
 	# rather than reading from a container node
 	await get_tree().process_frame
 	var dest = card_node.global_position
-	card_node.global_position = from_pos
-	var tween = card_node.create_tween()
+	# Skip animation if card is already at destination
+	if from_pos.distance_to(dest) < 10:
+		return
+	# ← CHANGED: same duplicate approach as animate_card_in
+	# prevents layout gaps when cards animate into HBoxContainers
+	var preview = card_node.duplicate()
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview.size = card_node.size
+	anim_layer.add_child(preview)
+	preview.global_position = from_pos
+	card_node.modulate.a = 0  # hide real card during animation
+	var tween = preview.create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(card_node, "global_position", dest, 0.3)
+	tween.tween_property(preview, "global_position", dest, 0.3)
+	tween.tween_callback(func():
+		if is_instance_valid(card_node):
+			card_node.modulate.a = 1.0
+		preview.queue_free())
 
 func animate_card_to_discard(card_node: Control):
 	if _suppress_animations:
@@ -466,13 +599,26 @@ func animate_card_to_discard(card_node: Control):
 	tween.tween_callback(func(): card_node.queue_free())
 
 func animate_vitality_damage():
-	# Red flash on the vitality label when the Fool takes damage
-	var original_color = fool_vitality_label.get_theme_color("font_color") \
-		if fool_vitality_label.has_theme_color("font_color") \
-		else Color.WHITE
+	# Red flash and scale pulse on vitality label
 	var tween = fool_vitality_label.create_tween()
-	tween.tween_property(fool_vitality_label, "modulate", Color(1, 0, 0, 1), 0.1)
-	tween.tween_property(fool_vitality_label, "modulate", Color(1, 1, 1, 1), 0.3)
+	tween.tween_property(fool_vitality_label, "scale", Vector2(1.5, 1.5), 0.1)
+	tween.parallel().tween_property(fool_vitality_label, "modulate",
+		Color(1.0, 0.1, 0.1), 0.1)
+	tween.tween_interval(0.08)
+	tween.tween_property(fool_vitality_label, "scale", Vector2(1.0, 1.0), 0.25)
+	tween.parallel().tween_property(fool_vitality_label, "modulate",
+		Color(1.0, 1.0, 1.0), 0.25)
+	
+func animate_vitality_heal():
+	# Green flash and scale pulse on vitality label — mirrors animate_card_boosted
+	var tween = fool_vitality_label.create_tween()
+	tween.tween_property(fool_vitality_label, "scale", Vector2(1.5, 1.5), 0.12)
+	tween.parallel().tween_property(fool_vitality_label, "modulate",
+		Color(0.2, 1.0, 0.2), 0.12)
+	tween.tween_interval(0.1)
+	tween.tween_property(fool_vitality_label, "scale", Vector2(1.0, 1.0), 0.2)
+	tween.parallel().tween_property(fool_vitality_label, "modulate",
+		Color(1.0, 1.0, 1.0), 0.2)
 
 func animate_card_to_deck(card_node: Control):
 	if _suppress_animations:
@@ -489,6 +635,217 @@ func animate_card_to_deck(card_node: Control):
 		deck_container.global_position, 0.25)
 	tween.parallel().tween_property(card_node, "modulate:a", 0.0, 0.25)
 	tween.tween_callback(func(): card_node.queue_free())
+	
+func animate_collision(attacker_node: Control, target_id: int):
+	if _suppress_animations:
+		attacker_node.queue_free()
+		return
+		
+	# NEW: suppress discard pile update until animation completes
+	_suppress_discard_render = true
+	
+	# Attacker slides to the target card's position, pauses briefly,
+	# then both fly to the discard pile
+	# target_node may still exist briefly since challenge removal
+	# is handled by _sync_zone after _sync_single
+	var target_node = _card_nodes.get(target_id, null)
+	var dest = discard_container.global_position
+	if target_node != null and is_instance_valid(target_node):
+		# Target node still exists — use its live position
+		dest = target_node.global_position
+	elif _pending_collision_positions.has(target_id):
+		# ← NEW: target node already freed but position was captured
+		dest = _pending_collision_positions[target_id]
+		_pending_collision_positions.erase(target_id)
+
+	var src_pos = attacker_node.global_position
+	attacker_node.reparent(anim_layer, true)
+	attacker_node.global_position = src_pos
+
+	var tween = attacker_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	# Slide to target
+	tween.tween_property(attacker_node, "global_position", dest, 0.2)
+	# Brief pause at target position
+	tween.tween_interval(0.1)
+	# Then fly to discard
+	tween.set_ease(Tween.EASE_IN)
+	tween.tween_property(attacker_node, "global_position",
+		discard_container.global_position, 0.2)
+	tween.parallel().tween_property(attacker_node, "modulate:a", 0.0, 0.2)
+	tween.tween_callback(func():
+		attacker_node.queue_free()
+		# NEW: re-enable discard render and update it now
+		_suppress_discard_render = false
+		_render_discard())
+
+func animate_helper_deploy(helper_node: Control, target_id: int):
+	if _suppress_animations:
+		helper_node.queue_free()
+		return
+	# Helper slides to target card, triggers value flash on target,
+	# then flies to discard
+	var target_node = _card_nodes.get(target_id, null)
+	var target_pos = discard_container.global_position
+	if target_node != null and is_instance_valid(target_node):
+		target_pos = target_node.global_position
+
+	var src_pos = helper_node.global_position
+	helper_node.reparent(anim_layer, true)
+	helper_node.global_position = src_pos
+
+	var tween = helper_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(helper_node, "global_position", target_pos, 0.25)
+	# CHANGED: brief pause before triggering boost so it feels like impact
+	tween.tween_interval(0.08)
+	# On arrival, flash the target card's value
+	tween.tween_callback(func():
+		if target_node != null and is_instance_valid(target_node):
+			animate_card_boosted(target_node))
+	# Brief pause then fly to discard
+	tween.tween_interval(0.15)
+	tween.tween_property(helper_node, "global_position",
+		discard_container.global_position, 0.2)
+	tween.parallel().tween_property(helper_node, "modulate:a", 0.0, 0.2)
+	tween.tween_callback(func(): helper_node.queue_free())
+
+func animate_card_boosted(card_node: Control):
+	# Brief gold flash and scale pulse on the value label
+	# to draw attention to the doubled value
+	var value_label = card_node.get_node_or_null("VBoxContainer/CardValue")
+	if value_label == null:
+		return
+	var tween = value_label.create_tween()
+	# Scale up
+	# CHANGED: bigger scale and longer duration for visibility
+	tween.tween_property(value_label, "scale", Vector2(1.8, 1.8), 0.15)
+	# Flash gold
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 0.85, 0.2), 0.15)
+	tween.tween_interval(0.1)
+	# Scale back down
+	tween.tween_property(value_label, "scale", Vector2(1.0, 1.0), 0.2)
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 1.0, 1.0), 0.2)
+		
+func animate_vitality_card_heal(vitality_node: Control):
+	if _suppress_animations:
+		vitality_node.queue_free()
+		return
+
+	# Get the Fool card node position as the target
+	var fool_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/FoolCard
+	var fool_card = fool_container.get_node_or_null("FoolCardDisplay")
+	var target_pos = fool_vitality_label.global_position
+	if fool_card != null and is_instance_valid(fool_card):
+		target_pos = fool_card.global_position
+
+	var src_pos = vitality_node.global_position
+	vitality_node.reparent(anim_layer, true)
+	vitality_node.global_position = src_pos
+
+	var tween = vitality_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	# Slide to Fool card
+	tween.tween_property(vitality_node, "global_position", target_pos, 0.25)
+	# Brief pause then trigger heal flash on vitality label
+	tween.tween_interval(0.08)
+	tween.tween_callback(func(): animate_vitality_heal())
+	# Then fly to discard
+	tween.tween_interval(0.1)
+	tween.tween_property(vitality_node, "global_position",
+		discard_container.global_position, 0.2)
+	tween.parallel().tween_property(vitality_node, "modulate:a", 0.0, 0.2)
+	tween.tween_callback(func(): vitality_node.queue_free())
+	
+func animate_fool_attack(target_id: int):
+	if _suppress_animations:
+		return
+	# Fool card moves to challenge position then returns to original spot
+	var fool_container = $MarginContainer/VBoxContainer/BottomHalf/FoolSection/VBoxContainer/FoolEquipped/FoolCard
+	var fool_card = fool_container.get_node_or_null("FoolCardDisplay")
+	if fool_card == null or not is_instance_valid(fool_card):
+		return
+
+	var origin = fool_card.global_position
+	var dest = _pending_collision_positions.get(target_id, origin)
+
+	var tween = fool_card.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	# Move toward challenge
+	tween.tween_property(fool_card, "global_position", dest, 0.2)
+	# Brief pause at impact
+	tween.tween_interval(0.05)
+	# Trigger damage flash at impact point
+	tween.tween_callback(func(): animate_vitality_damage())
+	# Return to original position
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(fool_card, "global_position", origin, 0.2)
+
+func animate_challenge_damaged(card_node: Control):
+	# Red flash and scale pulse on challenge value label
+	# shows the challenge took damage from volition depletion
+	var value_label = card_node.get_node_or_null("VBoxContainer/CardValue")
+	if value_label == null:
+		return
+	var tween = value_label.create_tween()
+	tween.tween_property(value_label, "scale", Vector2(1.6, 1.6), 0.12)
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 0.2, 0.2), 0.12)
+	tween.tween_interval(0.1)
+	tween.tween_property(value_label, "scale", Vector2(1.0, 1.0), 0.2)
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 1.0, 1.0), 0.2)
+
+func animate_strength_bounce(strength_node: Control, challenge_id: int, container: Node):
+	if _suppress_animations:
+		return
+	# Capture origin before reparenting
+	var origin = strength_node.global_position
+	var dest = _pending_collision_positions.get(challenge_id, origin)
+	_pending_collision_positions.erase(challenge_id)
+
+	# Reparent to anim_layer so container doesn't override position during tween
+	strength_node.reparent(anim_layer, true)
+	strength_node.global_position = origin
+
+	var tween = strength_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	# Slide to challenge position
+	tween.tween_property(strength_node, "global_position", dest, 0.2)
+	tween.tween_interval(0.05)
+	# Bounce back to equipped slot
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(strength_node, "global_position", origin, 0.2)
+	tween.tween_callback(func():
+		# Return to container and flash depleted value
+		strength_node.reparent(container, false)
+		animate_strength_depleted(strength_node))
+
+func animate_strength_depleted(card_node: Control):
+	# Red flash and scale pulse on the strength value label
+	# shows the strength card took damage from overcoming the challenge
+	var value_label = card_node.get_node_or_null("VBoxContainer/CardValue")
+	if value_label == null:
+		return
+	var tween = value_label.create_tween()
+	tween.tween_property(value_label, "scale", Vector2(1.6, 1.6), 0.12)
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 0.2, 0.2), 0.12)
+	tween.tween_interval(0.1)
+	tween.tween_property(value_label, "scale", Vector2(1.0, 1.0), 0.2)
+	tween.parallel().tween_property(value_label, "modulate",
+		Color(1.0, 1.0, 1.0), 0.2)
+
+# ------------------------------------
+# RENDERING
+# ------------------------------------
 
 # Renders an array of cards into a container
 # Like mapping over an array in JSX: cards.map(card => <Card data={card} />)
