@@ -1265,6 +1265,7 @@ func _track_event(event_name: String, params: Dictionary = {}):
 	# Only runs in web exports — JavaScriptBridge doesn't exist on desktop
 	if not OS.has_feature("web"):
 		return
+	print("Tracking event: ", event_name) # TEMPORARY
 	var js_params = JSON.stringify(params)
 	JavaScriptBridge.eval(
 		"typeof gtag !== 'undefined' && gtag('event', '" 

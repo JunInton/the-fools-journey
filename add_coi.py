@@ -18,12 +18,15 @@ COI_TAG = '  <script src="coi-serviceworker.js"></script>'
 with open("docs/index.html", "r") as f:
     content = f.read()
 
+# CHANGED: insert immediately after <head> instead of before </head>
+# GA recommends this for best performance
 if "googletagmanager" not in content:
-    content = content.replace("</head>", ANALYTICS_TAG + "\n</head>")
+    content = content.replace("<head>", "<head>\n" + ANALYTICS_TAG)
     print("Analytics tag added.")
 else:
     print("Analytics tag already present.")
 
+# COI tag stays before </head>
 if COI_TAG not in content:
     content = content.replace("</head>", COI_TAG + "\n</head>")
     print("COI serviceworker tag added.")
