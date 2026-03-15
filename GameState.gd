@@ -13,6 +13,11 @@ signal game_won
 #@warning_ignore("unused_signal")
 signal discard_viewer_requested
 
+signal sfx_reshuffle_start  # fires just before adventure field is cleared
+
+signal drag_started
+signal drag_ended
+
 # Specific audio signals so AudioManager knows exactly what happened
 # One signal per meaningful audio moment - keeps sounds from stacking up
 signal sfx_card_deal
@@ -70,6 +75,9 @@ var last_fatal_challenge = null     # challenge that drained final vitality
 # NEW: counter for assigning unique IDs to cards
 # Each card gets a _id field so we can track it across zone changes
 var _next_card_id: int = 0
+
+# Tracks the just-used Ace card ID
+var _last_chance_card_id: int = -1
 
 # ------------------------------------
 # SETUP
@@ -255,6 +263,10 @@ func use_chance(card: Dictionary, from_satchel: bool = false) -> bool:
 	else:
 		adventure_field.erase(card)
 	discard_pile.append(card)
+	
+	# NEW: signal before clearing so Main.gd can set reshuffle flag
+	_last_chance_card_id = card.get("_id", -1)
+	emit_signal("sfx_reshuffle_start")
 
 	# Shuffle adventure field back into deck
 	for field_card in adventure_field:

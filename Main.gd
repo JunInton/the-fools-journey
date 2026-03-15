@@ -11,6 +11,11 @@ var anim_layer: Control
 # instead of destroying and recreating nodes on every state change
 var _card_nodes: Dictionary = {}   # int -> Card node
 var _card_zones: Dictionary = {}   # int -> String zone name
+var _card_last_positions: Dictionary = {}  # ← NEW: int -> Vector2
+
+var _is_reshuffling: bool = false
+var _suppress_animations: bool = false
+var _chance_card_id: int = -1
 
 # ------------------------------------
 # @onready vars grab references to child nodes
@@ -76,6 +81,15 @@ func _ready():
 	GameState.game_won.connect(_on_game_won)
 	
 	GameState.discard_viewer_requested.connect(show_discard_viewer)
+	
+	GameState.sfx_vitality_damage.connect(func(): animate_vitality_damage())
+	
+	GameState.sfx_reshuffle_start.connect(func():
+		_is_reshuffling = true
+		_chance_card_id = GameState._last_chance_card_id)
+	
+	GameState.drag_started.connect(func(): _suppress_animations = true)
+	GameState.drag_ended.connect(func(): _suppress_animations = false)
 
 	# Connect to ThemeManager so the board recolors when theme changes
 	ThemeManager.theme_changed.connect(_on_theme_changed)
@@ -226,6 +240,7 @@ func _render_all():
 	_render_deck()
 	_render_fool_stats()
 	_render_fool_card()
+	_is_reshuffling = false
 	#_debug_print_node_ids() # TEMPORARY
 	
 # TEMPORARY
@@ -264,44 +279,61 @@ func _sync_zone(container: Node, cards: Array, zone_name: String):
 			expected_ids[card["_id"]] = card
 
 	# Remove nodes for cards that left this zone
-	# Only remove if the card isn't tracked elsewhere in the registry
-	# (it may have already moved to another zone)
 	for child in container.get_children():
 		if child.has_method("set_card") and child.card_data.has("_id"):
 			var id = child.card_data["_id"]
 			if not expected_ids.has(id):
-				# Card left this zone — remove from container
-				# Don't queue_free here since _sync on the destination
-				# zone will handle adding it there
 				if _card_zones.get(id, "") == zone_name:
-					# Only free if this zone still thinks it owns the card
+					# Store position before freeing so destination zone
+					# can animate from here instead of from deck
+					_card_last_positions[id] = child.global_position
 					_card_nodes.erase(id)
 					_card_zones.erase(id)
-					child.queue_free()
+					if _card_exists_in_any_zone(id):
+						# Card moved to another zone — just remove node silently
+						# destination sync will handle creating and animating it
+						child.queue_free()
+					elif _is_reshuffling and id != _chance_card_id:
+						# Field cards return to deck on reshuffle
+						# but the ace itself goes to discard
+						animate_card_to_deck(child)
+					else:
+						# Card was truly discarded
+						animate_card_to_discard(child)
 
-	# Add nodes for cards newly arrived in this zone
+	# Add or update nodes for cards in this zone
 	for card in cards:
 		if not card.has("_id"):
 			continue
 		var id = card["_id"]
 		if not _card_nodes.has(id) or not is_instance_valid(_card_nodes[id]):
-			# Card has no node yet — create one
+			# Card has no node yet — create one and animate it in
 			var instance = CardScene.instantiate()
 			instance.source_zone = zone_name
 			container.add_child(instance)
 			instance.set_card(card)
 			_card_nodes[id] = instance
 			_card_zones[id] = zone_name
+			# Use last known position as animation origin if available
+			# otherwise fly in from deck
+			if _card_last_positions.has(id):
+				var last_pos = _card_last_positions[id]
+				_card_last_positions.erase(id)
+				animate_card_in_from_pos(instance, last_pos)
+			else:
+				animate_card_in(instance, deck_container)
 		elif _card_zones.get(id, "") != zone_name:
-			# Card exists but is in wrong zone — move it
+			# Card exists but is in the wrong zone — reparent it
 			var existing = _card_nodes[id]
 			existing.source_zone = zone_name
 			existing.get_parent().remove_child(existing)
 			container.add_child(existing)
 			_card_zones[id] = zone_name
 		else:
-			# Card is already in the right zone — just update its display
-			# in case its data changed (e.g. value reduced by volition)
+			# Card is already in the correct zone — refresh its display
+			# Refreshing card_data reference ensures changes like value
+			# reductions from volition or helper doubling show correctly
+			_card_nodes[id].card_data = card
 			_card_nodes[id].update_display()
 
 func _sync_single(container: Node, card, zone_name: String):
@@ -311,9 +343,16 @@ func _sync_single(container: Node, card, zone_name: String):
 		for child in container.get_children():
 			if child.has_method("set_card"):
 				var id = child.card_data.get("_id", -999)
+				# Store position before freeing
+				_card_last_positions[id] = child.global_position
 				_card_nodes.erase(id)
 				_card_zones.erase(id)
-				child.queue_free()
+				if _card_exists_in_any_zone(id):
+					# Card moved elsewhere — remove silently
+					child.queue_free()
+				else:
+					# Card was discarded — animate to discard pile
+					animate_card_to_discard(child)
 		return
 
 	var id = card.get("_id", -999)
@@ -331,15 +370,125 @@ func _sync_single(container: Node, card, zone_name: String):
 		instance.set_card(card)
 		_card_nodes[id] = instance
 		_card_zones[id] = zone_name
+		# Use last known position as animation origin if available
+		# otherwise fly in from adventure field
+		if _card_last_positions.has(id):
+			var last_pos = _card_last_positions[id]
+			_card_last_positions.erase(id)
+			animate_card_in_from_pos(instance, last_pos)
+		else:
+			animate_card_in(instance, adventure_container)
 	elif _card_zones.get(id, "") != zone_name:
-		# Card exists but is in wrong zone — move it
+		# Card exists but is in wrong zone — reparent it
 		var existing = _card_nodes[id]
 		existing.source_zone = zone_name
 		existing.get_parent().remove_child(existing)
 		container.add_child(existing)
 		_card_zones[id] = zone_name
 	else:
+		# Card is already in correct zone — refresh its display
+		# Same card_data refresh as _sync_zone for consistency
+		_card_nodes[id].card_data = card
 		_card_nodes[id].update_display()
+		
+func _card_exists_in_any_zone(card_id: int) -> bool:
+	# Returns true if the card is still present in any active game zone
+	# Used to distinguish "card moved zones" from "card was discarded"
+	for card in GameState.adventure_field:
+		if card.get("_id", -999) == card_id:
+			return true
+	for card in GameState.satchel:
+		if card.get("_id", -999) == card_id:
+			return true
+	for card in GameState.equipped_wisdom:
+		if card.get("_id", -999) == card_id:
+			return true
+	if GameState.equipped_strength != null:
+		if GameState.equipped_strength.get("_id", -999) == card_id:
+			return true
+	if GameState.equipped_volition != null:
+		if GameState.equipped_volition.get("_id", -999) == card_id:
+			return true
+	return false
+		
+# ------------------------------------
+# ANIMATIONS
+# Cards animate using Godot's Tween system — like CSS transitions.
+# create_tween() creates a one-shot animation sequence.
+# tween_property(node, "property", target_value, duration) is the
+# core method — like CSS transition: property duration.
+# ------------------------------------
+
+func animate_card_in(card_node: Control, from_node: Control = null):
+	if _suppress_animations:
+		return
+	# Wait one frame so both source and destination positions are settled
+	await get_tree().process_frame
+	var dest = card_node.global_position
+	# CHANGED: read from_node position after await so layout is settled
+	# Previously from_position was captured before await giving wrong coords
+	var from_pos = from_node.global_position if from_node != null else dest
+	card_node.global_position = from_pos
+	var tween = card_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(card_node, "global_position", dest, 0.3)
+	
+func animate_card_in_from_pos(card_node: Control, from_pos: Vector2):
+	if _suppress_animations:
+		return
+	# Same as animate_card_in but uses a captured position
+	# rather than reading from a container node
+	await get_tree().process_frame
+	var dest = card_node.global_position
+	card_node.global_position = from_pos
+	var tween = card_node.create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(card_node, "global_position", dest, 0.3)
+
+func animate_card_to_discard(card_node: Control):
+	if _suppress_animations:
+		# Just free immediately with no animation
+		card_node.queue_free()
+		return
+	# Card flies toward the discard pile then disappears
+	# Card node gets freed after animation completes
+	var src_pos = card_node.global_position
+	card_node.reparent(anim_layer, true)
+	card_node.global_position = src_pos
+	var dest = discard_container.global_position
+	var tween = card_node.create_tween()
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(card_node, "global_position", dest, 0.25)
+	tween.parallel().tween_property(card_node, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(func(): card_node.queue_free())
+
+func animate_vitality_damage():
+	# Red flash on the vitality label when the Fool takes damage
+	var original_color = fool_vitality_label.get_theme_color("font_color") \
+		if fool_vitality_label.has_theme_color("font_color") \
+		else Color.WHITE
+	var tween = fool_vitality_label.create_tween()
+	tween.tween_property(fool_vitality_label, "modulate", Color(1, 0, 0, 1), 0.1)
+	tween.tween_property(fool_vitality_label, "modulate", Color(1, 1, 1, 1), 0.3)
+
+func animate_card_to_deck(card_node: Control):
+	if _suppress_animations:
+		card_node.queue_free()
+		return
+	# Card flies back toward the deck — used when reshuffling
+	var src_pos = card_node.global_position
+	card_node.reparent(anim_layer, true)
+	card_node.global_position = src_pos
+	var tween = card_node.create_tween()
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(card_node, "global_position", 
+		deck_container.global_position, 0.25)
+	tween.parallel().tween_property(card_node, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(func(): card_node.queue_free())
 
 # Renders an array of cards into a container
 # Like mapping over an array in JSX: cards.map(card => <Card data={card} />)

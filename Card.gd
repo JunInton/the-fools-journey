@@ -205,6 +205,8 @@ func _get_drag_data(_at_position: Vector2):
 	# Challenges can never be dragged - they must be resolved in place
 	if card_data.get("role", "") == CardData.ROLE_CHALLENGE:
 		return null
+	# NEW: tell Main.gd a drag is starting so animations are suppressed
+	GameState.emit_signal("drag_started")
 	# Use duplicate() as the drag preview so it looks like the card
 	var preview = duplicate()
 	set_drag_preview(preview)
@@ -278,6 +280,7 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 # GameState handles all the logic; this just identifies what happened.
 # ------------------------------------
 func _drop_data(_at_position: Vector2, data: Variant):
+	
 	var card = data.get("card", {})
 	var source = data.get("source_zone", "")
 	
@@ -343,7 +346,14 @@ func _drop_data(_at_position: Vector2, data: Variant):
 	if source == "fool":
 		GameState.resolve_directly(card_data)
 		return
-		
+
+func _notification(what: int):
+	# NOTIFICATION_DRAG_END fires when any drag initiated by this node
+	# ends — whether dropped successfully or cancelled
+	# More reliable than _drop_data which only fires on valid drops
+	if what == NOTIFICATION_DRAG_END:
+		GameState.emit_signal("drag_ended")
+
 func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
 	var popup = PopupPanel.new()
 	var vbox = VBoxContainer.new()
