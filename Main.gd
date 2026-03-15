@@ -162,6 +162,7 @@ func _ready():
 	_clear_registry()
 
 	GameState.start_game()
+	_track_event("game_started", {"theme": ThemeManager.current_theme})
 
 # ------------------------------------
 # LAYOUT SETUP
@@ -258,6 +259,18 @@ func _on_state_changed():
 
 func _on_game_over(reason: String):
 	print("GAME OVER: ", reason)
+	var challenges_remaining = 0
+	for card in GameState.adventure_field:
+		if card.role == CardData.ROLE_CHALLENGE:
+			challenges_remaining += 1
+	for card in GameState.deck:
+		if card.role == CardData.ROLE_CHALLENGE:
+			challenges_remaining += 1
+	_track_event("game_lost", {
+		"challenges_remaining": challenges_remaining,
+		"fatal_challenge": GameState.last_fatal_challenge.get("name", "Unknown") \
+			if GameState.last_fatal_challenge else "Unknown"
+	})
 	# Small delay so player can see the final board state before transitioning
 	# create_timer().timeout is like setTimeout() in JS
 	await get_tree().create_timer(1.5).timeout
@@ -266,6 +279,11 @@ func _on_game_over(reason: String):
 
 func _on_game_won():
 	print("YOU WIN!")
+	_track_event("game_won", {
+		"vitality_remaining": GameState.vitality,
+		"final_challenge": GameState.last_resolved_challenge.get("name", "Unknown") \
+			if GameState.last_resolved_challenge else "Unknown"
+	})
 	await get_tree().create_timer(1.5).timeout
 	RenderingServer.set_default_clear_color(Color.BLACK)
 	get_tree().change_scene_to_file("res://WinScreen.tscn")
@@ -683,6 +701,10 @@ func animate_collision(attacker_node: Control, target_id: int):
 func animate_helper_deploy(helper_node: Control, target_id: int):
 	if _suppress_animations:
 		helper_node.queue_free()
+		# CHANGED: skip movement but still flash boosted value on target
+		var target_node = _card_nodes.get(target_id, null)
+		if target_node != null and is_instance_valid(target_node):
+			animate_card_boosted(target_node)
 		return
 	# Helper slides to target card, triggers value flash on target,
 	# then flies to discard
@@ -804,6 +826,9 @@ func animate_challenge_damaged(card_node: Control):
 
 func animate_strength_bounce(strength_node: Control, challenge_id: int, container: Node):
 	if _suppress_animations:
+		# CHANGED: skip movement but still flash depleted value
+		# player needs to see the result even without the animation
+		animate_strength_depleted(strength_node)
 		return
 	# Capture origin before reparenting
 	var origin = strength_node.global_position
@@ -1234,3 +1259,13 @@ func _confirm_return_to_menu():
 	popup.add_child(vbox)
 	get_tree().root.add_child(popup)
 	popup.popup_centered()
+
+# Google Analytics
+func _track_event(event_name: String, params: Dictionary = {}):
+	# Only runs in web exports — JavaScriptBridge doesn't exist on desktop
+	if not OS.has_feature("web"):
+		return
+	var js_params = JSON.stringify(params)
+	JavaScriptBridge.eval(
+		"typeof gtag !== 'undefined' && gtag('event', '" 
+		+ event_name + "', " + js_params + ")")

@@ -4,6 +4,7 @@ extends Control
 @onready var subtitle_label = $CenterContainer/VBoxContainer/SubtitleLabel
 @onready var start_button = $CenterContainer/VBoxContainer/StartButton
 @onready var rules_button = $CenterContainer/VBoxContainer/RulesButton
+@onready var credits_button = $CenterContainer/VBoxContainer/CreditsButton
 
 # ------------------------------------
 # SECRET CODE
@@ -65,6 +66,9 @@ func _ready():
 	rules_button.text = "Rules"
 	rules_button.pressed.connect(_on_rules_pressed)
 	
+	credits_button.text = "Credits"
+	credits_button.pressed.connect(_on_credits_pressed)
+	
 	_setup_fool_card()
 
 # Holds reference to fool card display so _apply_theme can update it
@@ -112,6 +116,10 @@ func _on_rules_pressed():
 	AudioManager.play_menu_click()
 	ThemeManager.rules_return_scene = "res://MainMenu.tscn"
 	get_tree().change_scene_to_file("res://RulesScreen.tscn")
+	
+func _on_credits_pressed():
+	AudioManager.play_menu_click()
+	get_tree().change_scene_to_file("res://CreditsScreen.tscn")
 
 func _apply_theme():
 	# Remove any existing background node before re-applying
@@ -201,6 +209,10 @@ func _on_secret_activated():
 	# Visual and audio feedback so the player knows it worked
 	AudioManager.play_sfx("ping")
 	print("Secret code activated! Theme: ", ThemeManager.current_theme)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval(
+			"typeof gtag !== 'undefined' && gtag('event', 'theme_switched', {'new_theme': '"
+			+ ThemeManager.current_theme + "'})")
 	# Flash the subtitle as confirmation
 	subtitle_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
 	await get_tree().create_timer(0.3).timeout

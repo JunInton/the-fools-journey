@@ -34,3 +34,6 @@ layout_mode = 2
 [node name="RulesButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1571840923]
 layout_mode = 2
 text = "Rules"
+
+[node name="CreditsButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1949400887]
+layout_mode = 2
