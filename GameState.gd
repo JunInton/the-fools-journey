@@ -120,12 +120,12 @@ func start_game():
 	CardData.all_cards[0]["_id"] = -1
 		
 	# TEMPORARY: verify IDs are being assigned correctly
-	print("First 5 card IDs:")
-	for i in range(5):
-		# ← CHANGED: use ["name"] bracket notation instead of .name
-		print("  ", deck[i]["name"], " -> _id: ", deck[i]["_id"])
-	print("Total cards with IDs: ", deck.size())
-	print("Fool ID: ", CardData.all_cards[0]["_id"])
+	#print("First 5 card IDs:")
+	#for i in range(5):
+		## ← CHANGED: use ["name"] bracket notation instead of .name
+		#print("  ", deck[i]["name"], " -> _id: ", deck[i]["_id"])
+	#print("Total cards with IDs: ", deck.size())
+	#print("Fool ID: ", CardData.all_cards[0]["_id"])
 	
 	vitality = MAX_VITALITY
 	satchel = []

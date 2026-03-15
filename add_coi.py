@@ -2,19 +2,16 @@
 
 ANALYTICS_ID = "G-8EVWSF3YH8"
 
-ANALYTICS_TAG = f"""  <!-- Google Analytics (cookieless) -->
+ANALYTICS_TAG = f"""  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id={ANALYTICS_ID}"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){{dataLayer.push(arguments);}}
     gtag('js', new Date());
-    gtag('config', '{ANALYTICS_ID}', {{
-      'anonymize_ip': true,
-      'storage': 'none',
-      'storeGac': false
-    }});
-  </script>
-  <!-- End Google Analytics -->"""
+    gtag('config', '{ANALYTICS_ID}');
+    gtag('set', 'anonymize_ip', true);
+    gtag('set', {{'ads_data_redaction': true}});
+  </script>"""
 
 COI_TAG = '  <script src="coi-serviceworker.js"></script>'
 

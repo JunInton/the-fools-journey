@@ -71,7 +71,7 @@ func _ready():
 	anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	anim_layer.z_index = 10
 	add_child(anim_layer)
-	print("Animation layer created. z_index: ", anim_layer.z_index)
+	#print("Animation layer created. z_index: ", anim_layer.z_index)
 	
 	# Set static label text for all zone headers
 	adventure_label.text = "Adventure Field"

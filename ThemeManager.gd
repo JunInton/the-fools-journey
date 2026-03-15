@@ -190,9 +190,9 @@ func apply_screen_background(node: Control, screen: String,
 
 	# Case 1 — image
 	if path != "":
-		print("Background path found: ", path)
+		#print("Background path found: ", path)
 		var texture = load(path)
-		print("Texture loaded: ", texture)
+		#print("Texture loaded: ", texture)
 		if texture != null:
 			var bg = TextureRect.new()
 			bg.texture = texture
