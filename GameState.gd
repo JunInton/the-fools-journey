@@ -2,24 +2,35 @@ extends Node
 
 # ------------------------------------
 # SIGNALS
-# Signals are Godot's version of events/callbacks.
-# Like an EventEmitter in JS — other nodes can
-# "listen" to these and react when they fire.
+# GameState communicates with the rest of the game exclusively through
+# signals. Other nodes connect to these and react when they fire —
+# this keeps game logic cleanly separated from rendering and audio.
 # ------------------------------------
-signal state_changed  # fires whenever anything updates
+
+# Core game flow
+signal state_changed   # fires after any game state update
 signal game_over(reason: String)
 signal game_won
 
-#@warning_ignore("unused_signal")
+# Fired when the player double-clicks the discard pile area
+@warning_ignore("unused_signal")
 signal discard_viewer_requested
 
-signal sfx_reshuffle_start  # fires just before adventure field is cleared
+# Fired just before the adventure field is cleared by an Ace reshuffle,
+# giving Main.gd time to set animation flags before nodes are removed
+signal sfx_reshuffle_start
 
+# Drag-and-drop lifecycle — used by Main.gd to suppress movement animations
+# while the player is dragging a card (the drag preview handles visual feedback)
 signal drag_started
 signal drag_ended
 
-# Pre-animation signals — fire before state changes so Main.gd
-# can capture card positions before nodes are removed
+# ------------------------------------
+# PRE-ANIMATION SIGNALS
+# These fire immediately before the corresponding state change occurs.
+# Main.gd connects to them to capture card node positions and queue
+# animations before those nodes are freed by the next state_changed render.
+# ------------------------------------
 signal anim_strength_vs_challenge(strength_id: int, challenge_id: int)
 signal anim_strength_survives(strength_id: int, challenge_id: int)
 signal anim_volition_vs_challenge(volition_id: int, challenge_id: int)
@@ -28,9 +39,11 @@ signal anim_challenge_damaged(challenge_id: int)
 signal anim_helper_deployed(helper_id: int, target_id: int)
 signal anim_vitality_heal(vitality_id: int)
 
-
-# Specific audio signals so AudioManager knows exactly what happened
-# One signal per meaningful audio moment - keeps sounds from stacking up
+# ------------------------------------
+# AUDIO SIGNALS
+# One signal per meaningful game audio moment.
+# AudioManager connects to these and plays the appropriate sound effect.
+# ------------------------------------
 signal sfx_card_deal
 signal sfx_card_discard
 signal sfx_card_equip
@@ -43,90 +56,72 @@ signal sfx_wisdom_equip
 
 # ------------------------------------
 # GAME STATE
+# All mutable game data lives here as Autoload-accessible variables.
+# Main.gd reads these on every state_changed to rebuild the display.
 # ------------------------------------
 
-# The draw pile - array of card Dictionaries
-var deck: Array = []
+var deck: Array = []            # draw pile — array of card Dictionaries
+var adventure_field: Array = [] # the 4 cards currently in play
+var satchel: Array = []         # player's storage bag, max 3 cards
+var discard_pile: Array = []    # all used and discarded cards
 
-# The 4 cards currently in play
-var adventure_field: Array = []
-
-# Player's bag - max 3 cards
-var satchel: Array = []
-
-# Cards that have been used/discarded
-var discard_pile: Array = []
-
-# Fool's stats
 var vitality: int = 25
 const MAX_VITALITY = 25
 const MAX_SATCHEL = 3
 const ADVENTURE_FIELD_SIZE = 4
 
-# Equipped cards - only one of each type at a time
-var equipped_wisdom: Array = []   # up to 3 wisdom cards
-var equipped_strength = null      # one card or null
-var equipped_volition = null      # one card or null
+var equipped_wisdom: Array = []  # up to 3 Pentacles cards
+var equipped_strength = null     # one Wands pip card or null
+var equipped_volition = null     # one Swords pip card or null
 
-# Tracks how many cards in the adventure field
-# have been resolved this round (need 3 of 4)
+# Counts how many cards have left the adventure field this round.
+# When this reaches 3, the adventure ends and 3 new cards are dealt.
 var cards_resolved_this_adventure: int = 0
 
-# The carry-over card from previous adventure
+# The one card that carries over to the next adventure when a round ends
 var carried_over_card = null
 
-# Guard flag for Chance interaction quirks
+# Guards against double-dealing when use_chance() cancels a pending
+# _end_adventure() timer that was already counting down
 var _adventure_end_pending: bool = false
 
-# Tracks the last challenge involved in ending the game
-# Read by WinScreen and LoseScreen to display the final card
+# Stored at game end so win/lose screens can display the final card
 var last_resolved_challenge = null  # last challenge successfully overcome
-var last_fatal_challenge = null     # challenge that drained final vitality
+var last_fatal_challenge = null     # challenge that drained the last Vitality
 
-# NEW: counter for assigning unique IDs to cards
-# Each card gets a _id field so we can track it across zone changes
+# Incremented each time start_game() assigns IDs so every card across
+# every game gets a unique integer identity
 var _next_card_id: int = 0
 
-# Tracks the just-used Ace card ID
+# Stored when an Ace is used so Main.gd can exclude it from the
+# reshuffle animation (the Ace itself goes to discard, not back to the deck)
 var _last_chance_card_id: int = -1
 
 # ------------------------------------
 # SETUP
 # ------------------------------------
 func _ready():
-	pass  # we won't auto-start, Main scene will call start_game()
+	pass  # start_game() is called explicitly by Main.gd after the scene is ready
 
 func start_game():
-	print("Starting new game...")
-
-	# Build a fresh deck from CardData, excluding The Fool
+	# Build a fresh 77-card deck from CardData, excluding The Fool
 	deck = []
 	for card in CardData.all_cards:
 		if card.role != CardData.ROLE_FOOL:
-			deck.append(card.duplicate())  # .duplicate() is like JS spread {...card}
+			deck.append(card.duplicate()) # .duplicate() is like JS spread {...card} — creates a fresh copy so cards don't share references
 
 	_shuffle_deck()
-	
-	# NEW: assign a unique _id to every card in the deck
-	# This lets Main.gd track which node represents which card
-	# across zone changes without destroying and recreating nodes.
-	# Like a React key — stable identity for each card throughout the game.
+
+	# Assign a unique integer _id to every card so Main.gd can maintain
+	# a persistent node registry across state changes and zone transitions
 	_next_card_id = 0
 	for card in deck:
 		card["_id"] = _next_card_id
 		_next_card_id += 1
-		
-	# The Fool lives outside the deck so gets a fixed special ID
+
+	# The Fool lives outside the deck permanently and gets a fixed ID of -1
 	CardData.all_cards[0]["_id"] = -1
-		
-	# TEMPORARY: verify IDs are being assigned correctly
-	#print("First 5 card IDs:")
-	#for i in range(5):
-		## ← CHANGED: use ["name"] bracket notation instead of .name
-		#print("  ", deck[i]["name"], " -> _id: ", deck[i]["_id"])
-	#print("Total cards with IDs: ", deck.size())
-	#print("Fool ID: ", CardData.all_cards[0]["_id"])
-	
+
 	vitality = MAX_VITALITY
 	satchel = []
 	discard_pile = []
@@ -139,186 +134,145 @@ func start_game():
 
 	_deal_adventure()
 	emit_signal("state_changed")
-	print("Game started! Deck size: ", deck.size())
 
 # ------------------------------------
 # DECK MANAGEMENT
 # ------------------------------------
 func _shuffle_deck():
-	deck.shuffle()  # Godot's built-in shuffle, like JS array sort hack but actually random
-	print("Deck shuffled.")
+	deck.shuffle() # Godot's built-in shuffle, like JS array sort hack but actually random
 
 func _deal_adventure():
 	adventure_field = []
 	cards_resolved_this_adventure = 0
 
-	# Carry-over card goes in first, in the leftmost position
+	# The carry-over card from the previous round goes in position 0
 	if carried_over_card != null:
 		adventure_field.append(carried_over_card)
 		carried_over_card = null
 
-	# Fill remaining slots from the deck
-	# pop_back() takes from the end of the array - like JS .pop()
+	# Fill remaining slots by drawing from the top of the deck
 	while adventure_field.size() < ADVENTURE_FIELD_SIZE and deck.size() > 0:
-		adventure_field.append(deck.pop_back())
+		adventure_field.append(deck.pop_back()) # pop_back() removes and returns the last element — like JS .pop()
 		emit_signal("sfx_card_deal")
 
-	print("Adventure dealt. Field: ", adventure_field.size(), 
-		" cards. Deck remaining: ", deck.size())
-
 # ------------------------------------
-# ACTIONS
-# These are the things the player can DO.
-# Each returns true/false for success.
+# PLAYER ACTIONS
+# Each action function validates the move, updates state, emits the
+# appropriate signals, and returns true/false for success.
 # ------------------------------------
 
-# Move a card from adventure field into the satchel
-# Now uses _remove_from_source so storing a card correctly
-# counts toward the 3 needed to end the adventure
 func store_in_satchel(card: Dictionary) -> bool:
 	if satchel.size() >= MAX_SATCHEL:
-		print("Satchel is full!")
 		return false
 	if card.role == CardData.ROLE_CHALLENGE:
-		print("Cannot store a Challenge card!")
 		return false
-
-	# _remove_from_source handles adventure field tracking
-	# previously this was adventure_field.erase(card) directly
-	# which bypassed _on_card_resolved entirely
+	# Routes through _remove_from_source so the adventure field's
+	# resolved card count is tracked correctly
 	_remove_from_source(card, false)
 	satchel.append(card)
 	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
-	print("Stored in satchel: ", card.name)
 	return true
 
-# Discard a non-challenge card from field or satchel
-# Same fix - now routes through _remove_from_source
-# so field discards correctly count toward adventure completion
 func discard_card(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role == CardData.ROLE_CHALLENGE:
-		print("Cannot discard a Challenge card!")
 		return false
-
-	# _remove_from_source handles both satchel and field removal
-	# and triggers _on_card_resolved when card leaves the field
 	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
 	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
-	print("Discarded: ", card.name)
 	return true
 
-# Equip a Wisdom card (from field or satchel)
 func equip_wisdom(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_WISDOM:
 		return false
 	if equipped_wisdom.size() >= 3:
-		print("Already have 3 Wisdom cards equipped!")
 		return false
-
 	_remove_from_source(card, from_satchel)
 	equipped_wisdom.append(card)
 	emit_signal("sfx_wisdom_equip")
 	emit_signal("state_changed")
-	print("Equipped wisdom: ", card.name)
 	return true
 
-# Equip a Strength card
 func equip_strength(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_STRENGTH:
 		return false
-	# If already equipped, discard the old one first
+	# If a Strength card is already equipped, discard it first
 	if equipped_strength != null:
 		discard_pile.append(equipped_strength)
-		print("Old Strength discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_strength = card
 	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
-	print("Equipped strength: ", card.name)
 	return true
 
-# Equip a Volition card
 func equip_volition(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_VOLITION:
 		return false
-	#If already equipped, discard the old one first
+	# If a Volition card is already equipped, discard it first
 	if equipped_volition != null:
 		discard_pile.append(equipped_volition)
-		print("Old Volition discarded.")
 	_remove_from_source(card, from_satchel)
 	equipped_volition = card
 	emit_signal("sfx_card_equip")
 	emit_signal("state_changed")
-	print("Equipped volition: ", card.name)
 	return true
 
-# Use an Ace (Chance) - reshuffle adventure field into deck
 func use_chance(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_CHANCE:
 		return false
-	
-	# ← Cancel any deferred _end_adventure() from a recent card resolution
-	# Without this, the timer fires after use_chance() already dealt new cards
-	# resulting in a double deal
+
+	# Cancel any pending _end_adventure() timer — use_chance() handles
+	# its own deal, so letting the timer fire would cause a double deal
 	_adventure_end_pending = false
-	
-	# ← CHANGED: erase directly instead of _remove_from_source()
-	# _remove_from_source() would trigger _on_card_resolved() which
-	# queues _end_adventure() — but use_chance() handles its own deal,
-	# so we skip that path entirely to prevent a double deal
+
+	# Erase directly rather than through _remove_from_source() to avoid
+	# triggering _on_card_resolved(), which would also queue _end_adventure()
 	if from_satchel:
 		satchel.erase(card)
 	else:
 		adventure_field.erase(card)
 	discard_pile.append(card)
-	
-	# NEW: signal before clearing so Main.gd can set reshuffle flag
+
+	# Store the Ace's ID and emit the reshuffle signal before clearing the
+	# adventure field so Main.gd can set its animation flags in time
 	_last_chance_card_id = card.get("_id", -1)
 	emit_signal("sfx_reshuffle_start")
 
-	# Shuffle adventure field back into deck
+	# Return all adventure field cards to the deck and reshuffle
 	for field_card in adventure_field:
 		deck.append(field_card)
 	adventure_field = []
-	
-	# ← NEW: clear any carried over card back into the deck too
-	# If a carried_over_card was set from the previous adventure,
-	# _deal_adventure() would place it at position 0 of the new field
-	# making it look like a card never got reshuffled.
-	# Taking a Chance should reshuffle everything including this card.
+
+	# Also return the carry-over card if one is waiting — otherwise it would
+	# appear in the new field as if it was never reshuffled
 	if carried_over_card != null:
 		deck.append(carried_over_card)
 		carried_over_card = null
-	
+
 	_shuffle_deck()
 	_deal_adventure()
 	emit_signal("sfx_shuffle")
 	emit_signal("state_changed")
-	print("Chance used! Adventure reshuffled.")
 	return true
 
-# Resolve a challenge using Volition (overcome)
 func resolve_with_volition(challenge: Dictionary) -> bool:
 	if equipped_volition == null:
-		print("No Volition equipped!")
 		return false
 	if challenge.role != CardData.ROLE_CHALLENGE:
 		return false
 
 	var vol_value = equipped_volition.value
 	var challenge_value = challenge.value
-	
-	# NEW: emit before state changes
+
+	# Emit pre-animation signal before any state changes so Main.gd can
+	# capture node positions for the collision animation
 	emit_signal("anim_volition_vs_challenge",
 		equipped_volition.get("_id", -1),
 		challenge.get("_id", -1))
 
 	if vol_value >= challenge_value:
-		# Overcome! Discard both
-		print("Challenge OVERCOME with Volition!")
+		# Volition meets or exceeds challenge — both cards are discarded
 		last_resolved_challenge = challenge
 		discard_pile.append(equipped_volition)
 		discard_pile.append(challenge)
@@ -326,22 +280,20 @@ func resolve_with_volition(challenge: Dictionary) -> bool:
 		_remove_from_source(challenge, false)
 		emit_signal("sfx_challenge_resolved")
 	else:
-		# Deplete the challenge
-		print("Volition depletes challenge by ", vol_value)
+		# Volition falls short — challenge value is reduced and survives,
+		# Volition card is still discarded
 		challenge.value -= vol_value
 		discard_pile.append(equipped_volition)
 		equipped_volition = null
-		# NEW: emit after value is reduced so the flash shows the new value
+		# Emit after the value is reduced so the damage flash shows the new value
 		emit_signal("anim_challenge_damaged", challenge.get("_id", -1))
 		emit_signal("sfx_sword_hit")
-	
+
 	emit_signal("state_changed")
 	return true
 
-# Resolve a challenge using Strength (endure)
 func resolve_with_strength(challenge: Dictionary) -> bool:
 	if equipped_strength == null:
-		print("No Strength equipped!")
 		return false
 	if challenge.role != CardData.ROLE_CHALLENGE:
 		return false
@@ -350,11 +302,9 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 	var challenge_value = challenge.value
 
 	if str_value == challenge_value:
-		# Exactly matched - both discarded
-		# ← CHANGED: emit moved inside branch so survive case uses different signal
+		# Exact match — both cards are discarded
 		emit_signal("anim_strength_vs_challenge",
 			equipped_strength.get("_id", -1), challenge.get("_id", -1))
-		print("Challenge ENDURED exactly!")
 		last_resolved_challenge = challenge
 		discard_pile.append(equipped_strength)
 		discard_pile.append(challenge)
@@ -363,12 +313,12 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		emit_signal("sfx_challenge_resolved")
 
 	elif str_value > challenge_value:
-		# Strength wins - challenge discarded, strength survives with depleted value
-		# ← CHANGED: emits survive signal instead of collision signal
-		# so Main.gd knows to bounce the card back to its slot rather than discard it
+		# Strength exceeds challenge — challenge is discarded, Strength stays
+		# equipped with its value reduced by the challenge's value.
+		# Uses a different animation signal so Main.gd plays a bounce-back
+		# animation instead of a discard animation for the Strength card.
 		emit_signal("anim_strength_survives",
 			equipped_strength.get("_id", -1), challenge.get("_id", -1))
-		print("Challenge ENDURED, Strength depleted by ", challenge_value)
 		last_resolved_challenge = challenge
 		equipped_strength.value -= challenge_value
 		discard_pile.append(challenge)
@@ -376,12 +326,11 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 		emit_signal("sfx_challenge_resolved")
 
 	else:
-		# Challenge wins - both discarded, Fool takes damage
-		# ← CHANGED: emit moved inside branch, same collision signal as equal case
+		# Challenge exceeds Strength — both are discarded and the Fool
+		# takes Vitality damage equal to the difference
 		emit_signal("anim_strength_vs_challenge",
 			equipped_strength.get("_id", -1), challenge.get("_id", -1))
 		var damage = challenge_value - str_value
-		print("Challenge ENDURED at cost! Fool takes ", damage, " damage")
 		last_resolved_challenge = challenge
 		last_fatal_challenge = challenge
 		vitality -= damage
@@ -395,78 +344,136 @@ func resolve_with_strength(challenge: Dictionary) -> bool:
 	emit_signal("state_changed")
 	return true
 
-# Resolve a challenge directly (pay vitality)
-# Now uses _remove_from_source like all other resolution functions
 func resolve_directly(challenge: Dictionary) -> bool:
+	# The Fool takes full Vitality damage equal to the challenge's current value
 	if challenge.role != CardData.ROLE_CHALLENGE:
 		return false
 
 	vitality -= challenge.value
 	emit_signal("sfx_vitality_damage")
-	print("Challenge resolved directly! Vitality cost: ", challenge.value)
 	last_fatal_challenge = challenge
 	last_resolved_challenge = challenge
 	discard_pile.append(challenge)
-	
-	# NEW: emit before removing so Main.gd can capture positions
+
+	# Emit before removing so Main.gd can capture the challenge node's position
+	# for the Fool lunge animation
 	emit_signal("anim_fool_vs_challenge", challenge.get("_id", -1))
-	
-	# _remove_from_source replaces the old adventure_field.erase() + _on_card_resolved()
-	# pattern - one call handles both removal and adventure completion check
+
 	_remove_from_source(challenge, false)
 	_check_vitality()
 	emit_signal("state_changed")
 	return true
 
-# Replenish vitality using a Cups card
 func replenish_vitality(card: Dictionary, from_satchel: bool = false) -> bool:
 	if card.role != CardData.ROLE_VITALITY:
 		return false
 
-	var healed = min(card.value, MAX_VITALITY - vitality)  # can't exceed 25
+	# Clamp healing so Vitality never exceeds the maximum
+	var healed = min(card.value, MAX_VITALITY - vitality)
 	vitality += healed
 	emit_signal("sfx_vitality_heal")
-	print("Vitality replenished by ", healed, ". Now at: ", vitality)
-	
-	# NEW: emit before removing card
+
+	# Emit before removing so Main.gd can animate the card sliding to the Fool
 	emit_signal("anim_vitality_heal", card.get("_id", -1))
-	
+
 	_remove_from_source(card, from_satchel)
 	discard_pile.append(card)
+	emit_signal("state_changed")
+	return true
+
+func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from_satchel: bool = false) -> bool:
+	if helper_card.role != CardData.ROLE_HELPER:
+		return false
+	if helper_card.suit != target_card.suit:
+		return false
+	if target_card.get("doubled", false):
+		return false
+	if equipped_wisdom.size() == 0:
+		return false
+
+	# Spend one equipped Wisdom card as the deployment cost
+	var wisdom_card = equipped_wisdom[0]
+	equipped_wisdom.remove_at(0)
+	discard_pile.append(wisdom_card)
+
+	# Double the target card's value and mark it so it can't be doubled again
+	target_card["value"] = target_card["value"] * 2
+	target_card["doubled"] = true
+
+	# Emit before removing the helper so Main.gd can animate it sliding
+	# to the target card before flying to the discard pile
+	emit_signal("anim_helper_deployed",
+		helper_card.get("_id", -1),
+		target_card.get("_id", -1))
+
+	_remove_from_source(helper_card, helper_from_satchel)
+	discard_pile.append(helper_card)
+
+	emit_signal("sfx_card_discard")
+	emit_signal("state_changed")
+	return true
+
+func unequip_strength_to_discard() -> bool:
+	if equipped_strength == null:
+		return false
+	discard_pile.append(equipped_strength)
+	equipped_strength = null
+	emit_signal("sfx_card_discard")
+	emit_signal("state_changed")
+	return true
+
+func unequip_volition_to_discard() -> bool:
+	if equipped_volition == null:
+		return false
+	discard_pile.append(equipped_volition)
+	equipped_volition = null
+	emit_signal("sfx_card_discard")
+	emit_signal("state_changed")
+	return true
+
+func unequip_wisdom_to_discard(card: Dictionary) -> bool:
+	if equipped_wisdom.is_empty():
+		return false
+	if not equipped_wisdom.has(card):
+		return false
+	equipped_wisdom.erase(card)
+	discard_pile.append(card)
+	emit_signal("sfx_card_discard")
 	emit_signal("state_changed")
 	return true
 
 # ------------------------------------
 # INTERNAL HELPERS
 # ------------------------------------
-# Central removal function called whenever a card leaves a zone
-# Now tracks adventure field removals to trigger adventure completion
-# Previously only challenge resolution counted - this was the bug
+
 func _remove_from_source(card: Dictionary, from_satchel: bool):
+	# Central removal function for all card zone transitions.
+	# Routes through here so adventure field removals are always counted,
+	# which is what triggers adventure completion checks.
 	if from_satchel:
 		satchel.erase(card)
 	else:
-		# Card is leaving the adventure field - count it
-		# erase() returns true if the card was found and removed
 		var was_in_field = adventure_field.has(card)
 		adventure_field.erase(card)
 		if was_in_field:
 			_on_card_resolved()
 
 func _on_card_resolved():
-	# NEW: Don't deal a new adventure if the game is already lost
-	# resolve_directly() removes the card (triggering this function) before
-	# checking vitality, so we could end up dealing new cards and showing
-	# the lose screen at the same time. Bail out early if vitality is gone.
+	# Called whenever a card leaves the adventure field.
+	# Checks for win conditions and triggers a new adventure deal
+	# once 3 of the 4 field cards have been resolved.
+
+	# Guard against dealing new cards when the game is already lost.
+	# resolve_directly() removes the card before checking vitality,
+	# so this function could otherwise fire after a fatal hit.
 	if vitality <= 0:
 		return
-	
-	cards_resolved_this_adventure += 1
-	print("Cards resolved this adventure: ", cards_resolved_this_adventure)
 
-	# Count remaining challenges across deck and adventure field
-	# The player wins as soon as the last challenge is resolved —
-	# no need to clear leftover non-challenge cards from the field
+	cards_resolved_this_adventure += 1
+
+	# Check if all Major Arcana challenges have been cleared —
+	# the win condition doesn't require the full deck to be exhausted,
+	# only that no challenges remain anywhere
 	var challenges_in_deck = 0
 	for c in deck:
 		if c.role == CardData.ROLE_CHALLENGE:
@@ -478,114 +485,36 @@ func _on_card_resolved():
 			challenges_in_field += 1
 
 	if challenges_in_deck == 0 and challenges_in_field == 0:
-		print("YOU WIN! All challenges resolved!")
 		emit_signal("game_won")
 		return
 
-	# Need 3 of 4 cards resolved before dealing the next adventure
+	# After 3 of 4 cards are resolved, wait briefly then end the adventure.
+	# The delay gives SFX time to finish playing before the new deal fires.
 	if cards_resolved_this_adventure >= 3:
-		_adventure_end_pending = true # flag that a deal is incoming
-		# Delay _end_adventure() slightly so challenge_resolved
-		# SFX has time to play before card_deal fires on the new deal.
-		# create_timer() is non-blocking - like setTimeout() in JS.
-		await get_tree().create_timer(0.4).timeout
+		_adventure_end_pending = true
+		await get_tree().create_timer(0.4).timeout # create_timer() is non-blocking — like setTimeout() in JS
 		if _adventure_end_pending:
 			_adventure_end_pending = false
 			_end_adventure()
 
 func _end_adventure():
-	print("Adventure complete!")
-
-	# The one unresolved card carries over to the next adventure
-	# Per the rules, exactly one card remains when 3 of 4 are resolved
+	# The one remaining unresolved card carries over as the first card
+	# of the next adventure field
 	if adventure_field.size() == 1:
 		carried_over_card = adventure_field[0]
 		adventure_field = []
 	elif adventure_field.size() == 0:
 		carried_over_card = null
 
-	# Check win condition - deck empty and no cards left to resolve
+	# Final win check — deck exhausted with no carry-over remaining
 	if deck.size() == 0 and adventure_field.size() == 0 and carried_over_card == null:
-		print("YOU WIN!")
 		emit_signal("game_won")
 		return
 
-	# Deal the next adventure
 	_deal_adventure()
 	emit_signal("state_changed")
 
 func _check_vitality():
 	if vitality <= 0:
 		vitality = 0
-		print("GAME OVER - Vitality depleted!")
 		emit_signal("game_over", "The Fool's journey has ended.")
-		
-func deploy_helper(helper_card: Dictionary, target_card: Dictionary, helper_from_satchel: bool = false) -> bool:
-	if helper_card.role != CardData.ROLE_HELPER:
-		return false
-	if helper_card.suit != target_card.suit:
-		print("Helper suit doesn't match target!")
-		return false
-	if target_card.get("doubled", false):
-		print("Card already doubled!")
-		return false
-	if equipped_wisdom.size() == 0:
-		print("Need at least one Wisdom card to deploy a Helper!")
-		return false
-
-	# Pay cost - discard one equipped wisdom card
-	var wisdom_card = equipped_wisdom[0]
-	equipped_wisdom.remove_at(0)
-	discard_pile.append(wisdom_card)
-	print("Wisdom spent: ", wisdom_card.name)
-
-	# Double the target card's value and flag it
-	target_card["value"] = target_card["value"] * 2
-	target_card["doubled"] = true
-	
-	# NEW: emit before removing helper node
-	emit_signal("anim_helper_deployed",
-		helper_card.get("_id", -1),
-		target_card.get("_id", -1))
-
-	# Discard the helper
-	_remove_from_source(helper_card, helper_from_satchel)
-	discard_pile.append(helper_card)
-
-	emit_signal("sfx_card_discard")
-	emit_signal("state_changed")
-	print("Helper deployed! ", target_card.name, " value doubled to ", target_card.value)
-	return true
-	
-# Called when player drags an equipped card to the discard pile
-# Unequips the card and discards it cleanly
-func unequip_strength_to_discard() -> bool:
-	if equipped_strength == null:
-		return false
-	discard_pile.append(equipped_strength)
-	equipped_strength = null
-	emit_signal("sfx_card_discard")
-	emit_signal("state_changed")
-	print("Strength unequipped and discarded.")
-	return true
-
-func unequip_volition_to_discard() -> bool:
-	if equipped_volition == null:
-		return false
-	discard_pile.append(equipped_volition)
-	equipped_volition = null
-	emit_signal("sfx_card_discard")
-	emit_signal("state_changed")
-	print("Volition unequipped and discarded.")
-	return true
-	
-func unequip_wisdom_to_discard(card: Dictionary) -> bool:
-	if equipped_wisdom.is_empty():
-		return false
-	if not equipped_wisdom.has(card):
-		return false
-	equipped_wisdom.erase(card)
-	discard_pile.append(card)
-	emit_signal("sfx_card_discard")
-	emit_signal("state_changed")
-	return true

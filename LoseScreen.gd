@@ -1,43 +1,49 @@
 extends Control
 
-@onready var title_label = $CenterContainer/VBoxContainer/TitleLabel
-@onready var stats_label = $CenterContainer/VBoxContainer/StatsLabel
+@onready var title_label    = $CenterContainer/VBoxContainer/TitleLabel
+@onready var stats_label    = $CenterContainer/VBoxContainer/StatsLabel
 @onready var play_again_btn = $CenterContainer/VBoxContainer/PlayAgainBtn
 
+# ------------------------------------
+# LOSE TEXT
+# Theme-specific copy for the lose screen.
+# Keyed by theme constant so the correct text is selected in _ready().
+# ------------------------------------
 const LOSE_TEXT = {
 	ThemeManager.THEME_RWS: {
-		"title": "The Fool's Journey Ends Here",
+		"title":       "The Fool's Journey Ends Here",
 		"title_color": Color(0.9, 0.3, 0.3),
 		"stats_color": Color(0.8, 0.6, 0.6),
-		"button": "Try Again",
-		"flavor": "Perhaps the next journey will fare better."
+		"button":      "Try Again",
+		"flavor":      "Perhaps the next journey will fare better."
 	},
 	ThemeManager.THEME_PERSONA3: {
-		"title": "You could not overcome the Dark Hour.",
+		"title":       "You could not overcome the Dark Hour.",
 		"title_color": Color8(0, 187, 250),
 		"stats_color": Color8(121, 215, 253),
-		"button": "Return to the Dark Hour",
-		"flavor": "\"Memento Mori. Remember, you will die.\""
+		"button":      "Return to the Dark Hour",
+		"flavor":      "\"Memento Mori. Remember, you will die.\""
 	},
 	ThemeManager.THEME_PERSONA5: {
-		"title": "Game Over\nThe Metaverse has claimed you.",
+		"title":       "Game Over\nThe Metaverse has claimed you.",
 		"title_color": Color8(217, 35, 35),
 		"stats_color": Color8(140, 103, 35),
-		"button": "Back to the hideout",
-		"flavor": "\"A true Phantom Thief never gives up.\""
+		"button":      "Back to the hideout",
+		"flavor":      "\"A true Phantom Thief never gives up.\""
 	}
 }
 
 func _ready():
 	AudioManager.set_screen("lose")
+
 	var text = LOSE_TEXT[ThemeManager.current_theme]
 
-	# CHANGED: black background for all themes
 	ThemeManager.apply_screen_background(
 		self, "lose",
 		Color.BLACK, Color.BLACK,
 		Color.BLACK)
 
+	# Count challenges still remaining at time of defeat for the stats display
 	var challenges_remaining = 0
 	for card in GameState.adventure_field:
 		if card.role == CardData.ROLE_CHALLENGE:
@@ -51,15 +57,11 @@ func _ready():
 	title_label.add_theme_font_size_override("font_size", 38)
 	title_label.add_theme_color_override("font_color", text["title_color"])
 
-	stats_label.text = (
-		str(challenges_remaining) + " challenges left unresolved.\n"
-		+ text["flavor"]
-	)
+	stats_label.text = str(challenges_remaining) + " challenges left unresolved.\n" + text["flavor"]
 	stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_label.add_theme_font_size_override("font_size", 18)
 	stats_label.add_theme_color_override("font_color", text["stats_color"])
 
-	# ← NEW: show the challenge that ended the run
 	_add_fatal_card_display(text["title_color"])
 
 	play_again_btn.text = text["button"]
@@ -67,7 +69,8 @@ func _ready():
 	$CenterContainer/VBoxContainer.add_theme_constant_override("separation", 24)
 
 func _add_fatal_card_display(accent_color: Color):
-	# Prefer the fatal challenge (caused direct damage) over last resolved
+	# Prefer the fatal challenge (the one that drained the last Vitality)
+	# over the last resolved challenge, falling back if neither is set
 	var challenge = GameState.last_fatal_challenge
 	if challenge == null:
 		challenge = GameState.last_resolved_challenge
@@ -84,9 +87,8 @@ func _add_fatal_card_display(accent_color: Color):
 	vbox.add_child(section_label)
 	vbox.move_child(section_label, play_again_btn.get_index())
 
-	# ← CHANGED: only show card name text for themes where cards
-	# don't display their own name on the image (e.g. Persona 3)
-	# RWS cards already have the name printed on the card image itself
+	# RWS card images include the card name printed on the image itself,
+	# so a separate name label is only needed for other themes
 	if ThemeManager.current_theme != ThemeManager.THEME_RWS:
 		var card_label = Label.new()
 		card_label.text = challenge.get("name", "Unknown")

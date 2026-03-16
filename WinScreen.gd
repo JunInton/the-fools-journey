@@ -1,43 +1,44 @@
 extends Control
 
-@onready var title_label = $CenterContainer/VBoxContainer/TitleLabel
-@onready var stats_label = $CenterContainer/VBoxContainer/StatsLabel
+@onready var title_label    = $CenterContainer/VBoxContainer/TitleLabel
+@onready var stats_label    = $CenterContainer/VBoxContainer/StatsLabel
 @onready var play_again_btn = $CenterContainer/VBoxContainer/PlayAgainBtn
 
+# ------------------------------------
+# WIN TEXT
+# Theme-specific copy for the win screen.
+# Keyed by theme constant so the correct text is selected in _ready().
+# ------------------------------------
 const WIN_TEXT = {
 	ThemeManager.THEME_RWS: {
-		"title": "The Fool Completes His Journey!",
-		"title_color": Color(0.9, 0.85, 0.6),
-		"stats_color": Color(0.7, 0.9, 0.7),
-		"button": "Journey Again",
+		"title":        "The Fool Completes His Journey!",
+		"title_color":  Color(0.9, 0.85, 0.6),
+		"stats_color":  Color(0.7, 0.9, 0.7),
+		"button":       "Journey Again",
 		"stats_suffix": " vitality remaining."
 	},
 	ThemeManager.THEME_PERSONA3: {
-		"title": "The Journey of the Fool is Complete.",
-		"title_color": Color8(255, 197, 74),
-		"stats_color": Color8(121, 215, 253),
-		"button": "Face destiny again",
+		"title":        "The Journey of the Fool is Complete.",
+		"title_color":  Color8(255, 197, 74),
+		"stats_color":  Color8(121, 215, 253),
+		"button":       "Face destiny again",
 		"stats_suffix": " resolve remaining.\n\"The power of the Wild Card is yours.\""
 	},
 	ThemeManager.THEME_PERSONA5: {
-		"title": "Thou hast stolen the heart of fate itself.",
-		"title_color": Color8(242, 232, 82),
-		"stats_color": Color8(217, 35, 35),
-		"button": "Take another target",
+		"title":        "Thou hast stolen the heart of fate itself.",
+		"title_color":  Color8(242, 232, 82),
+		"stats_color":  Color8(217, 35, 35),
+		"button":       "Take another target",
 		"stats_suffix": " resolve remaining.\n\"The Phantom Thieves never lose.\""
 	}
 }
 
 func _ready():
-	# Makes root Control fill the viewport
-	# same fix as MainMenu.gd — without it background nodes render at 0x0
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	
 	AudioManager.set_screen("win")
+
 	var text = WIN_TEXT[ThemeManager.current_theme]
 
-	# CHANGED: black background for all themes now
-	# image path in ThemeManager.backgrounds.win will override when added later
 	ThemeManager.apply_screen_background(
 		self, "win",
 		Color.BLACK, Color.BLACK,
@@ -53,11 +54,7 @@ func _ready():
 	stats_label.add_theme_font_size_override("font_size", 20)
 	stats_label.add_theme_color_override("font_color", text["stats_color"])
 
-	# ← NEW: show the final challenge that was overcome
-	_add_final_card_display(
-		GameState.last_resolved_challenge,
-		"Final Challenge Overcome:",
-		text["title_color"])
+	_add_final_card_display(GameState.last_resolved_challenge, "Final Challenge Overcome:", text["title_color"])
 
 	play_again_btn.text = text["button"]
 	play_again_btn.pressed.connect(_on_play_again_pressed)
@@ -69,20 +66,16 @@ func _add_final_card_display(challenge, label_text: String, accent_color: Color)
 
 	var vbox = $CenterContainer/VBoxContainer
 
-	# Section label
 	var section_label = Label.new()
 	section_label.text = label_text
 	section_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	section_label.add_theme_font_size_override("font_size", 16)
 	section_label.add_theme_color_override("font_color", accent_color)
-	# Insert before the button
 	vbox.add_child(section_label)
 	vbox.move_child(section_label, play_again_btn.get_index())
 
-	# Card name and value
-	# CHANGED: only show card name text for themes where cards
-	# don't display their own name on the image (e.g. Persona 3)
-	# RWS cards already have the name printed on the card image itself
+	# RWS card images include the card name printed on the image itself,
+	# so a separate name label is only needed for other themes
 	if ThemeManager.current_theme != ThemeManager.THEME_RWS:
 		var card_label = Label.new()
 		card_label.text = challenge.get("name", "Unknown")
@@ -92,7 +85,6 @@ func _add_final_card_display(challenge, label_text: String, accent_color: Color)
 		vbox.add_child(card_label)
 		vbox.move_child(card_label, play_again_btn.get_index())
 
-	# Card image
 	var image_path = CardData.get_card_image_path(challenge)
 	if image_path != "":
 		var texture = load(image_path)
