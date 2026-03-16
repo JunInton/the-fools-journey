@@ -296,6 +296,8 @@ func _render_all():
 	_render_fool_stats()
 	_render_fool_card()
 	_is_reshuffling = false
+	if _suppress_discard_render:
+		call_deferred("_render_discard") # call_defered similar to setTimeout(fn, 0)
 
 # ------------------------------------
 # CARD REGISTRY MANAGEMENT
@@ -429,18 +431,17 @@ func _sync_single(container: Node, card, zone_name: String):
 	var id = card.get("_id", -999)
 	if not _card_nodes.has(id) or not is_instance_valid(_card_nodes[id]):
 		# No node yet — clear the slot and create a new one.
-		# If the outgoing card was discarded (replaced by a new equip),
-		# animate it flying to the discard pile instead of freeing it instantly.
+		# Always animate the outgoing card to discard rather than checking
+		# _card_exists_in_any_zone, which can return a false positive before
+		# GameState has fully flushed — causing the old card to be silently
+		# reparented to the wrong container instead of discarded
 		for child in container.get_children():
 			if child.has_method("set_card"):
 				var old_id = child.card_data.get("_id", -999)
 				_card_last_positions[old_id] = child.global_position
 				_card_nodes.erase(old_id)
 				_card_zones.erase(old_id)
-				if _card_exists_in_any_zone(old_id):
-					child.queue_free()
-				else:
-					animate_card_to_discard(child)
+				animate_card_to_discard(child)
 		var instance = CardScene.instantiate()
 		instance.source_zone = zone_name
 		container.add_child(instance)
@@ -835,7 +836,7 @@ func _render_deck():
 	var label = Label.new()
 	label.text = str(GameState.deck.size()) + " cards\n" + str(challenge_count) + " challenges remaining"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_font_size_override("font_size", 15)
 	label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	deck_container.add_child(label)
 
@@ -900,13 +901,13 @@ func _setup_labels():
 	]
 	for label in all_labels:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.add_theme_font_size_override("font_size", 14)
+		label.add_theme_font_size_override("font_size", 18)
 	var header_labels = [
 		adventure_label, discard_label, deck_label,
 		wisdom_label, satchel_label, fool_label
 	]
 	for label in header_labels:
-		label.add_theme_font_size_override("font_size", 16)
+		label.add_theme_font_size_override("font_size", 20)
 		label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
 
 # ------------------------------------
@@ -1009,7 +1010,7 @@ func _show_rules_overlay():
 	overlay.add_child(panel)
 	var margin = MarginContainer.new()
 	margin.add_theme_constant_override("margin_left",   140)
-	margin.add_theme_constant_override("margin_right",  200)
+	margin.add_theme_constant_override("margin_right",  100)
 	margin.add_theme_constant_override("margin_top",    16)
 	margin.add_theme_constant_override("margin_bottom", 16)
 	panel.add_child(margin)

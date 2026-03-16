@@ -60,8 +60,16 @@ func _build_deck():
 	_build_suit(SUIT_COINS)
 
 func _build_suit(suit: String):
-	var suit_label = suit.capitalize()  # "cups" -> "Cups"
-
+	# SUIT_BATONS uses "Wands" to match standard tarot terminology
+	# rather than the older Italian "Batons" name
+	var display_names = {
+		SUIT_CUPS:   "Cups",
+		SUIT_BATONS: "Wands",
+		SUIT_SWORDS: "Swords",
+		SUIT_COINS:  "Coins"
+	}
+	var suit_label = display_names[suit]
+	
 	# Ace = Chance card for all suits
 	all_cards.append(_card("Ace of " + suit_label, suit, 1, ROLE_CHANCE, 0))
 

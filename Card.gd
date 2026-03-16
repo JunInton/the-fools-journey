@@ -3,6 +3,7 @@ extends PanelContainer
 var card_data: Dictionary = {}
 var source_zone: String = "adventure"
 var draggable: bool = true
+var _drag_started_this_click: bool = false
 
 # ------------------------------------
 # NODE REFERENCES
@@ -71,12 +72,12 @@ func update_display():
 	card_name_label.text = card_data.get("name", "Unknown")
 	card_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_name_label.max_lines_visible = 2
-	card_name_label.add_theme_font_size_override("font_size", 13)
+	card_name_label.add_theme_font_size_override("font_size", 16)
 	card_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Reserve space for exactly 2 lines even when the name only needs 1.
 	# Without this, single-line names make the card shorter than two-line names,
 	# causing vertical misalignment when multiple cards share a container.
-	card_name_label.custom_minimum_size.y = 30
+	card_name_label.custom_minimum_size.y = 40
 
 	_load_card_image()
 
@@ -105,7 +106,7 @@ func update_display():
 		card_value_label.visible = true
 
 	card_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card_value_label.add_theme_font_size_override("font_size", 13)
+	card_value_label.add_theme_font_size_override("font_size", 16)
 
 	_apply_color()
 
@@ -197,6 +198,7 @@ func _get_drag_data(_at_position: Vector2):
 	# Challenges can never be dragged — they must be resolved in place
 	if card_data.get("role", "") == CardData.ROLE_CHALLENGE:
 		return null
+	_drag_started_this_click = true # suppress menu on release
 	# Signal Main.gd that a drag has started so movement animations
 	# are suppressed — the drag preview handles visual feedback instead
 	GameState.emit_signal("drag_started")
@@ -212,6 +214,7 @@ func _notification(what: int):
 	# using _drop_data would leave _suppress_animations permanently true
 	# after any cancelled or invalid drag.
 	if what == NOTIFICATION_DRAG_END:
+		_drag_started_this_click = false
 		GameState.emit_signal("drag_ended")
 
 # ------------------------------------
@@ -344,28 +347,34 @@ func _drop_data(_at_position: Vector2, data: Variant):
 
 # ------------------------------------
 # INPUT HANDLING
-# Double-click opens a context-sensitive dialog depending on the card's
-# role and current zone. Single clicks are handled by Godot's drag system.
+# Quick single click opens a context-sensitive dialog depending on the card's
+# role and current zone. Single click-and-drag are handled by Godot's drag system.
 # ------------------------------------
 func _gui_input(event: InputEvent):
-	if event is InputEventMouseButton:
-		if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
-			# Double-click is always handled regardless of draggable state —
-			# non-draggable discard pile cards still need to open the discard viewer
-			_handle_double_click()
-
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			# Reset the drag tracker on every new click
+			_drag_started_this_click = false
+		else:
+			# Only open the menu on release if no drag occurred during this click
+			if not _drag_started_this_click:
+				_handle_double_click()
+				
 func _handle_double_click():
 	var role = card_data.get("role", "")
 
+	if source_zone == "discard":
+		GameState.emit_signal("discard_viewer_requested")
+		return
+		
+	if source_zone == "deck":
+		return
+		
 	if role == CardData.ROLE_CHALLENGE:
 		_show_challenge_dialog()
 		return
 
 	if role == CardData.ROLE_FOOL:
-		return
-
-	if source_zone == "discard":
-		GameState.emit_signal("discard_viewer_requested")
 		return
 
 	# Equipped cards only offer a discard option — they can't be re-equipped
@@ -391,6 +400,17 @@ func _show_action_menu():
 	title.text = card_data.get("name", "")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
+	
+	# Colors the title background with the card's suit color
+	# so the header feels visually connected to the card it came from
+	var title_style = StyleBoxFlat.new()
+	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.content_margin_left   = 8
+	title_style.content_margin_right  = 8
+	title_style.content_margin_top    = 6
+	title_style.content_margin_bottom = 6
+	title.add_theme_stylebox_override("normal", title_style)
+	title.add_theme_color_override("font_color", Color.WHITE)
 
 	match role:
 		CardData.ROLE_VITALITY:
@@ -421,12 +441,13 @@ func _show_action_menu():
 
 		CardData.ROLE_WISDOM:
 			if source_zone != "equipped_wisdom":
-				var equip_btn = Button.new()
-				equip_btn.text = "Equip as Wisdom"
-				equip_btn.pressed.connect(func():
-					popup.queue_free()
-					GameState.equip_wisdom(card_data, source_zone == "satchel"))
-				vbox.add_child(equip_btn)
+				if GameState.equipped_wisdom.size() < 3:
+					var equip_btn = Button.new()
+					equip_btn.text = "Equip as Wisdom"
+					equip_btn.pressed.connect(func():
+						popup.queue_free()
+						GameState.equip_wisdom(card_data, source_zone == "satchel"))
+					vbox.add_child(equip_btn)
 
 		CardData.ROLE_STRENGTH:
 			if source_zone != "equipped_strength":
@@ -455,7 +476,7 @@ func _show_action_menu():
 
 		CardData.ROLE_CHANCE:
 			var chance_btn = Button.new()
-			chance_btn.text = "Take a Chance — reshuffle Adventure"
+			chance_btn.text = "Take a Chance — reshuffle Adventure Field back into the Deck"
 			chance_btn.pressed.connect(func():
 				popup.queue_free()
 				GameState.use_chance(card_data, source_zone == "satchel"))
@@ -493,8 +514,8 @@ func _show_action_menu():
 				no_wisdom.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				vbox.add_child(no_wisdom)
 
-	# Store in Satchel is available for any adventure field card except Aces
-	if source_zone == "adventure" and role != CardData.ROLE_CHANCE:
+	# Store in Satchel is available for any adventure field card
+	if source_zone == "adventure":
 		if GameState.satchel.size() < GameState.MAX_SATCHEL:
 			var store_btn = Button.new()
 			store_btn.text = "Store in Satchel"
@@ -536,6 +557,17 @@ func _show_equipped_discard_menu():
 	title.text = card_data.get("name", "") + " (Equipped)"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
+	
+	# Colors the title background with the card's suit color
+	# so the header feels visually connected to the card it came from
+	var title_style = StyleBoxFlat.new()
+	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.content_margin_left   = 8
+	title_style.content_margin_right  = 8
+	title_style.content_margin_top    = 6
+	title_style.content_margin_bottom = 6
+	title.add_theme_stylebox_override("normal", title_style)
+	title.add_theme_color_override("font_color", Color.WHITE)
 
 	var discard_btn = Button.new()
 	discard_btn.text = "Discard"
@@ -570,6 +602,17 @@ func _show_challenge_dialog():
 	title.text = "Resolve: " + card_data.get("name", "") + " (Value: " + str(card_data.get("value", 0)) + ")"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
+	
+	# Colors the title background with the card's suit color
+	# so the header feels visually connected to the card it came from
+	var title_style = StyleBoxFlat.new()
+	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.content_margin_left   = 8
+	title_style.content_margin_right  = 8
+	title_style.content_margin_top    = 6
+	title_style.content_margin_bottom = 6
+	title.add_theme_stylebox_override("normal", title_style)
+	title.add_theme_color_override("font_color", Color.WHITE)
 
 	# Volition option — only shown if a Volition card is equipped
 	if GameState.equipped_volition != null:
@@ -713,9 +756,20 @@ func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
 	title.text = card.get("name", "Ace")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
+	
+	# Colors the title background with the card's suit color
+	# so the header feels visually connected to the card it came from
+	var title_style = StyleBoxFlat.new()
+	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.content_margin_left   = 8
+	title_style.content_margin_right  = 8
+	title_style.content_margin_top    = 6
+	title_style.content_margin_bottom = 6
+	title.add_theme_stylebox_override("normal", title_style)
+	title.add_theme_color_override("font_color", Color.WHITE)
 
 	var chance_btn = Button.new()
-	chance_btn.text = "Take a Chance — reshuffle Adventure"
+	chance_btn.text = "Take a Chance — reshuffle Adventure Field back into the Deck"
 	chance_btn.pressed.connect(func():
 		popup.queue_free()
 		GameState.use_chance(card, from_satchel))

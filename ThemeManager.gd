@@ -239,18 +239,42 @@ func apply_screen_background(node: Control, screen: String,
 func get_rules_text() -> String:
 	return \
 """OVERVIEW
-The Fool embarks on a journey, acquiring wisdom and overcoming challenges. You begin with 25 Vitality. The deck contains 77 cards — the full tarot minus The Fool himself. Four cards are dealt to the Adventure Field to begin each round.
+The Fool embarks on a journey, acquiring wisdom and overcoming challenges.
 
 OBJECTIVE
-Overcome every Major Arcana challenge and exhaust the deck with at least 1 Vitality remaining.
+Overcome all 21 Major Arcana challenges with at least 1 Vitality remaining.
+
+Win   — All 21 Challenges overcome
+Loss  — The Fool's Vitality reaches 0
+
+The Fool begins with 25 Vitality. The deck contains 77 cards —
+the full tarot minus The Fool himself.
 
 ------------------------------
-CONTROLS
+HOW TO PLAY
 ------------------------------
-Double-click any card to open its action menu. From there you can equip it, store it in the Satchel, heal with it, deploy it as a Helper, or discard it.
+Each adventure (round), 4 cards are dealt to the Adventure Field. You can take any of the following actions:
+
+  Click any card to open its action menu.
+
+  EQUIP —  Wands pip cards go to the Strength slot (1 max).
+                    Swords pip cards go to the Volition slot (1 max).
+                    Coins cards go to the Wisdom slot (3 max).
+
+  STORE — Move a card to the Satchel for later use (3 cards max). Satchel cards can be equipped or used at any time.
+
+  HEAL  — Use a Cups card to restore Vitality up to 25.
+
+  DEPLOY — Spend 1 Wisdom to send a face card (Helper) to a same-suit card, doubling its value. One Helper per card.
+
+  DISCARD — Remove a non-Challenge card from play.
+
+  TAKE A CHANCE — Spend an Ace to reshuffle all other Adventure Field cards back into the deck and deal 4 new cards.
+
+  RESOLVE — Overcome a Challenge using Strength, Volition, or Vitality directly (see below).
 
 Drag and drop cards as an alternative to the action menu:
-  - Drag a card to the Discard Pile zone to discard it.
+  - Drag a card to the Discard Pile to discard it.
   - Drag a card to the Wisdom, Strength, or Volition slots to equip it.
   - Drag a card to the Satchel zone to store it.
   - Drag a Vitality card onto the Fool card to heal.
@@ -258,55 +282,56 @@ Drag and drop cards as an alternative to the action menu:
   - Drag the Fool card onto a Challenge to resolve it directly with Vitality.
   - Drag a Helper card onto a same-suit card to deploy it (costs 1 Wisdom).
 
-Double-click the Discard Pile zone to view all discarded cards.
+Click the Discard Pile zone to view all discarded cards.
+
+When only 1 card remains in the Adventure Field, 3 more are dealt
+automatically. The remaining card carries over to the new adventure (round).
 
 ------------------------------
 THE CARDS
 ------------------------------
-
 Major Arcana — Challenges
-The 21 numbered Major Arcana are Challenges. Each card's number is its value. Challenges cannot be discarded — they must be overcome using Strength, Volition, Vitality, or a combination of these.
+  Values 1–21. Must be resolved — cannot be discarded or stored.
 
-Pentacles — Wisdom
-Equip up to 3 Pentacles cards (including face cards) to the Wisdom slot. Each equipped Wisdom card can be spent to deploy one Helper card.
+Coins — Wisdom           [max 3 equipped]
+  Spent as currency to deploy Helpers. Face cards also count. 
+  Value does not matter.
 
-Wands — Strength
-Equip one Wands pip card (not face cards) to the Strength slot. Strength is reusable — it stays equipped as long as its value exceeds the Challenge it faces. If it does not, both cards are discarded and the Fool takes the difference as damage.
+Wands — Strength         [max 1 equipped]
+  Pip cards only (2–10). Reusable — stays equipped after 
+  overcoming a challenge but its value is reduced.
+  Discarded at 0.
 
-Swords — Volition
-Equip one Swords pip card (not face cards) to the Volition slot. Volition is single-use — it is always discarded after overcoming a Challenge.
+Swords — Volition        [max 1 equipped]
+  Pip cards only (2–10). Single-use — always discarded after use.
 
 Cups — Vitality
-Double-click or drag to the Fool card to heal Vitality equal to the card's value, up to a maximum of 25.
+  Heal Vitality equal to the card's value, up to 25. Single-use — always discarded after use.
 
 Aces — Chance
-Double-click or drag to discard an Ace and reshuffle all Adventure Field cards back into the deck, then deal 4 new cards.
+  Spend the Ace to reshuffle the cards in the Adventure Field back into the deck and deal out a new adventure (start a new round).
+  
 
-Face Cards — Helpers
-Spend 1 Wisdom card to double the current value of a same-suit card in the Adventure Field, Satchel, or an equipped slot. Each card can only have one Helper at a time. Helpers deployed on cards in the Satchel do not count toward the 3-card Satchel limit.
+Face Cards (Page/Knight/Queen/King) — Helpers
+  Deploy to double a same-suit card's value (costs 1 Wisdom).
+  Single-use — discarded after being deployed.
+  Each pip card can only be doubled once.
 
-------------------------------
-OVERCOMING CHALLENGES
-------------------------------
-
-Using Strength (drag equipped Strength onto a Challenge, or use the Challenge's action menu)
-  Strength >= Challenge:  Challenge is discarded. Strength's value is reduced by the Challenge's value and stays equipped.
-  Strength < Challenge:   Both cards are discarded. The Fool loses Vitality equal to the difference.
-
-Using Volition (drag equipped Volition onto a Challenge, or use the Challenge's action menu)
-  Volition >= Challenge:   Both cards are discarded.
-  Volition < Challenge:   Volition is discarded. The Challenge remains with its value permanently reduced by Volition's value.
-
-Using Vitality directly (drag the Fool onto a Challenge, or use the Challenge's action menu)
-  The Challenge's current value is subtracted from the Fool's Vitality. The Challenge is then discarded.
+Satchel                [max 3 cards]
+  Storage for cards you want to save for later. Cards stored here 
+  can be equipped, used, or discarded at any time. Helpers deployed
+  on Satchel cards do not count toward the 3-card limit.
 
 ------------------------------
-ADVENTURE ROUNDS
+RESOLVING CHALLENGES
 ------------------------------
-When only 1 card remains in the Adventure Field, 3 more cards are dealt automatically to begin a new Adventure round. The remaining card carries over to the new field.
+Using Strength (equip then use action menu or drag onto Challenge)
+  Strength >= Challenge:  Challenge discarded. Strength reduced and stays equipped.
+  Strength < Challenge:   Both discarded. Fool loses Vitality equal to difference.
 
-------------------------------
-WINNING AND LOSING
-------------------------------
-  Win   All 21 Challenges overcome and the deck is exhausted.
-  Loss  The Fool's Vitality reaches 0."""
+Using Volition (equip then use action menu or drag onto Challenge)
+  Volition >= Challenge:  Both discarded.
+  Volition < Challenge:   Volition discarded. Challenge value permanently reduced.
+
+Using Vitality directly (use Challenge action menu or drag Fool onto Challenge)
+  Fool loses Vitality equal to Challenge's current value. Challenge discarded."""

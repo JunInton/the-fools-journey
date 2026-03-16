@@ -51,24 +51,36 @@ func _ready():
 	for card in GameState.deck:
 		if card.role == CardData.ROLE_CHALLENGE:
 			challenges_remaining += 1
+			
+	# Special case — player cleared all challenges but died in the process
+	# Technically a loss but deserves different framing than a normal defeat
+	var pyrrhic_victory = challenges_remaining == 0
 
 	title_label.text = text["title"]
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 38)
 	title_label.add_theme_color_override("font_color", text["title_color"])
-
-	stats_label.text = str(challenges_remaining) + " challenges left unresolved.\n" + text["flavor"]
+	
+	if pyrrhic_victory:
+		stats_label.text = (
+			"The Fool overcame every challenge...\n"
+			+ "but did not survive the final encounter.\n"
+			+ text["flavor"]
+		)
+	else:
+		stats_label.text = str(challenges_remaining) + " challenges left unresolved.\n" + text["flavor"]
+		
 	stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats_label.add_theme_font_size_override("font_size", 18)
 	stats_label.add_theme_color_override("font_color", text["stats_color"])
 
-	_add_fatal_card_display(text["title_color"])
+	_add_fatal_card_display(text["title_color"], pyrrhic_victory)
 
 	play_again_btn.text = text["button"]
 	play_again_btn.pressed.connect(_on_play_again_pressed)
 	$CenterContainer/VBoxContainer.add_theme_constant_override("separation", 24)
 
-func _add_fatal_card_display(accent_color: Color):
+func _add_fatal_card_display(accent_color: Color, pyrrhic_victory: bool = false):
 	# Prefer the fatal challenge (the one that drained the last Vitality)
 	# over the last resolved challenge, falling back if neither is set
 	var challenge = GameState.last_fatal_challenge
@@ -80,7 +92,7 @@ func _add_fatal_card_display(accent_color: Color):
 	var vbox = $CenterContainer/VBoxContainer
 
 	var section_label = Label.new()
-	section_label.text = "Defeated by:"
+	section_label.text = "Final Challenge:" if pyrrhic_victory else "Defeated by:"
 	section_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	section_label.add_theme_font_size_override("font_size", 16)
 	section_label.add_theme_color_override("font_color", accent_color)

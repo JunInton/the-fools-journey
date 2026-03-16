@@ -119,6 +119,8 @@ func _drop_data(_at_position: Vector2, data):
 				GameState.unequip_strength_to_discard()
 			elif source == "equipped_volition":
 				GameState.unequip_volition_to_discard()
+			elif source == "equipped_wisdom":
+				GameState.unequip_wisdom_to_discard(card)
 			else:
 				# Aces dropped on the discard zone offer the Chance option
 				# rather than silently discarding — matches double-click behavior
@@ -170,7 +172,7 @@ func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
 	vbox.add_child(title)
 
 	var chance_btn = Button.new()
-	chance_btn.text = "Take a Chance — reshuffle Adventure"
+	chance_btn.text = "Take a Chance — reshuffle Adventure Field back into the Deck"
 	chance_btn.pressed.connect(func():
 		popup.queue_free()
 		GameState.use_chance(card, from_satchel))
