@@ -69,6 +69,8 @@ func _ready():
 	GameState.sfx_wisdom_equip.connect(func():       play_sfx("sfx_wisdom_equip"))
 
 	ThemeManager.theme_changed.connect(_on_theme_changed)
+	
+	music_player.finished.connect(_on_music_finished)
 
 # ------------------------------------
 # SCREEN CONTEXT
@@ -100,6 +102,7 @@ func play_music(screen: String):
 	# Store the stream so _input() can start it once the browser unlocks
 	if not _audio_unlocked:
 		music_player.stream = stream
+		stream.loop = false
 		return
 
 	# Skip if the same track is already playing
@@ -108,6 +111,7 @@ func play_music(screen: String):
 			return
 
 	music_player.stream = stream
+	stream.loop = false
 	music_player.play()
 
 # ------------------------------------
@@ -164,7 +168,19 @@ func _input(event: InputEvent):
 		_audio_unlocked = true
 		if music_player.stream != null:
 			# Win and lose screens use one-shot tracks that shouldn't loop
-			music_player.stream.loop = _current_screen not in ["win", "lose"]
+			music_player.stream.loop = false
 			music_player.play()
 		elif _current_screen != "":
 			play_music(_current_screen)
+
+func _on_music_finished():
+	# Win and lose screens are one-shot — don't restart them
+	if _current_screen in ["win", "lose"]:
+		return
+	# Crossfade restart to mask the browser codec gap at the loop point
+	var tween = create_tween()
+	tween.tween_property(music_player, "volume_db", -80.0, 0.1)
+	tween.tween_callback(func():
+		music_player.play()
+		var fade_in = create_tween()
+		fade_in.tween_property(music_player, "volume_db", MUSIC_VOLUME_DB, 0.1))

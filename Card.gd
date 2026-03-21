@@ -83,7 +83,7 @@ func update_display():
 
 	# Value label sits below the colored border
 	var role  = card_data.get("role", "")
-	var value = card_data.get("value", 0)
+	var value = CardData.get_display_value(card_data)
 
 	if role in [CardData.ROLE_CHALLENGE, CardData.ROLE_VITALITY,
 				CardData.ROLE_STRENGTH, CardData.ROLE_VOLITION]:
@@ -404,13 +404,18 @@ func _show_action_menu():
 	# Colors the title background with the card's suit color
 	# so the header feels visually connected to the card it came from
 	var title_style = StyleBoxFlat.new()
-	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	var suit_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.bg_color = suit_color
 	title_style.content_margin_left   = 8
 	title_style.content_margin_right  = 8
 	title_style.content_margin_top    = 6
 	title_style.content_margin_bottom = 6
 	title.add_theme_stylebox_override("normal", title_style)
-	title.add_theme_color_override("font_color", Color.WHITE)
+	# Use dark text on light backgrounds, white text on dark backgrounds.
+	# Luminance threshold of 0.6 catches white and light colors.
+	var luminance = suit_color.r * 0.299 + suit_color.g * 0.587 + suit_color.b * 0.114
+	title.add_theme_color_override("font_color",
+		Color.BLACK if luminance > 0.9 else Color.WHITE)
 
 	match role:
 		CardData.ROLE_VITALITY:
@@ -561,13 +566,16 @@ func _show_equipped_discard_menu():
 	# Colors the title background with the card's suit color
 	# so the header feels visually connected to the card it came from
 	var title_style = StyleBoxFlat.new()
-	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	var suit_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.bg_color = suit_color
 	title_style.content_margin_left   = 8
 	title_style.content_margin_right  = 8
 	title_style.content_margin_top    = 6
 	title_style.content_margin_bottom = 6
 	title.add_theme_stylebox_override("normal", title_style)
-	title.add_theme_color_override("font_color", Color.WHITE)
+	var luminance = suit_color.r * 0.299 + suit_color.g * 0.587 + suit_color.b * 0.114
+	title.add_theme_color_override("font_color",
+		Color.BLACK if luminance > 0.9 else Color.WHITE)
 
 	var discard_btn = Button.new()
 	discard_btn.text = "Discard"
@@ -599,20 +607,23 @@ func _show_challenge_dialog():
 	vbox.add_theme_constant_override("separation", 8)
 
 	var title = Label.new()
-	title.text = "Resolve: " + card_data.get("name", "") + " (Value: " + str(card_data.get("value", 0)) + ")"
+	title.text = "Resolve: " + card_data.get("name", "") + " (Value: " + str(CardData.get_display_value(card_data)) + ")"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 	
 	# Colors the title background with the card's suit color
 	# so the header feels visually connected to the card it came from
 	var title_style = StyleBoxFlat.new()
-	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	var suit_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.bg_color = suit_color
 	title_style.content_margin_left   = 8
 	title_style.content_margin_right  = 8
 	title_style.content_margin_top    = 6
 	title_style.content_margin_bottom = 6
 	title.add_theme_stylebox_override("normal", title_style)
-	title.add_theme_color_override("font_color", Color.WHITE)
+	var luminance = suit_color.r * 0.299 + suit_color.g * 0.587 + suit_color.b * 0.114
+	title.add_theme_color_override("font_color",
+		Color.BLACK if luminance > 0.9 else Color.WHITE)
 
 	# Volition option — only shown if a Volition card is equipped
 	if GameState.equipped_volition != null:
@@ -760,13 +771,16 @@ func _show_ace_drop_menu(card: Dictionary, from_satchel: bool):
 	# Colors the title background with the card's suit color
 	# so the header feels visually connected to the card it came from
 	var title_style = StyleBoxFlat.new()
-	title_style.bg_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	var suit_color = ThemeManager.get_suit_color(card_data.get("suit", ""))
+	title_style.bg_color = suit_color
 	title_style.content_margin_left   = 8
 	title_style.content_margin_right  = 8
 	title_style.content_margin_top    = 6
 	title_style.content_margin_bottom = 6
 	title.add_theme_stylebox_override("normal", title_style)
-	title.add_theme_color_override("font_color", Color.WHITE)
+	var luminance = suit_color.r * 0.299 + suit_color.g * 0.587 + suit_color.b * 0.114
+	title.add_theme_color_override("font_color",
+		Color.BLACK if luminance > 0.9 else Color.WHITE)
 
 	var chance_btn = Button.new()
 	chance_btn.text = "Take a Chance — reshuffle Adventure Field back into the Deck"

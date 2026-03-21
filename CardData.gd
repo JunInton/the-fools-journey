@@ -137,6 +137,10 @@ func get_card_image_path(card: Dictionary) -> String:
 			var filename = _get_rws_filename(card)
 			if filename == "":
 				return ""
+			if filename == "maj08.jpg":
+				filename = "maj11.jpg"
+			elif filename == "maj11.jpg":
+				filename = "maj08.jpg"
 			return "res://assets/cards/persona3/" + filename
 		_:
 			# Any theme without card images falls back to colored rectangles
@@ -174,3 +178,15 @@ func _get_rws_filename(card: Dictionary) -> String:
 	if "King"   in card_name: return prefix + "14.jpg"
 
 	return ""
+
+func get_display_value(card: Dictionary) -> int:
+	# In Persona 3, Strength and Justice swap their traditional RWS positions.
+	# The game logic uses RWS values throughout, so only the display is adjusted.
+	if ThemeManager.current_theme == ThemeManager.THEME_PERSONA3:
+		var name = card.get("name", "")
+		if name == "Strength":
+			return 11
+		if name == "Justice":
+			return 8
+	return card.get("value", 0)
+	
